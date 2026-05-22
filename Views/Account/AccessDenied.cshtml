@@ -1,0 +1,23 @@
+@{
+    ViewData["Title"] = "Acceso Denegado";
+}
+
+<div style="max-width: 600px; margin: 4rem auto; text-align: center;">
+    <div style="display: inline-flex; align-items: center; justify-content: center; width: 80px; height: 80px; background-color: rgba(239, 68, 68, 0.15); border-radius: 50%; color: var(--color-danger); margin-bottom: 2rem;">
+        <i data-lucide="shield-alert" style="width: 48px; height: 48px;"></i>
+    </div>
+    
+    <h1 style="color: #fff; margin-bottom: 1rem;">Privilegios Insuficientes</h1>
+    <p style="color: var(--text-muted); font-size: 1.1rem; margin-bottom: 2rem;">
+        Tu cuenta de usuario no dispone de los permisos requeridos para acceder a este módulo. Por favor, ponte en contacto con el administrador si consideras que esto es un error.
+    </p>
+
+    <div style="display: flex; gap: 1rem; justify-content: center;">
+        <a asp-controller="Dashboard" asp-action="Index" class="btn btn-primary">
+            <i data-lucide="home"></i> Volver al Escritorio
+        </a>
+        <a asp-controller="Account" asp-action="Logout" class="btn btn-secondary">
+            <i data-lucide="log-out"></i> Cambiar de Usuario
+        </a>
+    </div>
+</div>

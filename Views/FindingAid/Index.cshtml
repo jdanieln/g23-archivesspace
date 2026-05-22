@@ -1,0 +1,114 @@
+@model List<Resource>
+@{
+    Layout = null; // Clean public interface
+}
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Catálogo Público de Recursos - ArchivesSpace G23</title>
+    <link rel="stylesheet" href="~/css/site.css" asp-append-version="true" />
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <style>
+        body {
+            background-color: #0f172a;
+            color: #f8fafc;
+            display: flex;
+            flex-direction: column;
+            min-height: 100vh;
+        }
+        .container {
+            max-width: 1000px;
+            margin: 0 auto;
+            padding: 3rem 1.5rem;
+            flex: 1;
+        }
+        .header {
+            text-align: center;
+            margin-bottom: 3rem;
+            border-bottom: 1px solid rgba(255,255,255,0.08);
+            padding-bottom: 2rem;
+        }
+        .catalog-title {
+            font-size: 2.2rem;
+            font-weight: 700;
+            background: linear-gradient(135deg, #fff, var(--text-muted));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <div style="display:inline-flex; align-items:center; justify-content:center; width: 50px; height: 50px; background: linear-gradient(135deg, var(--color-primary), var(--color-secondary)); border-radius: 12px; color: white; margin-bottom: 1rem;">
+                <i data-lucide="archive" style="width: 28px; height: 28px;"></i>
+            </div>
+            <h1 class="catalog-title">Buscador y Catálogo Público (Finding Aids)</h1>
+            <p style="color: var(--text-muted); font-size: 0.95rem; margin-top: 0.5rem;">
+                Consulta la descripción documental de colecciones, inventarios históricos e instrumentos de descripción archivística.
+            </p>
+        </div>
+
+        <!-- Search Bar -->
+        <div class="glass-card" style="margin-bottom: 2rem;">
+            <form method="get" style="display: flex; gap: 1rem;">
+                <input type="text" name="search" value="@ViewBag.Search" placeholder="Buscar por título de colección, materia, código identificador..." class="form-control" style="flex: 1; padding: 0.8rem 1.25rem;" />
+                <button type="submit" class="btn btn-primary" style="padding: 0.8rem 1.5rem;">
+                    <i data-lucide="search"></i> Consultar
+                </button>
+            </form>
+        </div>
+
+        <!-- Resources grid -->
+        <div style="display: flex; flex-direction: column; gap: 1.25rem;">
+            @if (Model != null && Model.Any())
+            {
+                foreach (var res in Model)
+                {
+                    <div class="glass-card" style="display: flex; justify-content: space-between; align-items: center; border-left: 3px solid var(--color-primary);">
+                        <div>
+                            <span style="font-family: monospace; font-size: 0.8rem; color: var(--color-secondary);">@res.Identifier</span>
+                            <h3 style="margin: 0.25rem 0; color: #fff;">@res.Title</h3>
+                            <div style="display: flex; gap: 1.5rem; font-size: 0.8rem; color: var(--text-muted); margin-top: 4px;">
+                                <span>Nivel: <strong style="color: #fff;">@res.LevelOfDescription</strong></span>
+                                <span>Fechas: <strong>@res.Dates</strong></span>
+                                <span>Custodia: <strong>@res.Repository?.Name</strong></span>
+                            </div>
+                        </div>
+                        <div>
+                            <a asp-action="View" asp-route-id="@res.Id" class="btn btn-primary" style="font-size: 0.85rem; padding: 0.5rem 1rem;">
+                                Ver Finding Aid <i data-lucide="arrow-right" style="width: 14px; height: 14px;"></i>
+                            </a>
+                        </div>
+                    </div>
+                }
+            }
+            else
+            {
+                <p style="color: var(--text-muted); text-align: center; padding: 3rem 0; font-size: 0.95rem;">
+                    No se encontraron descripciones documentales que coincidan con la búsqueda.
+                </p>
+            }
+        </div>
+
+        <div style="margin-top: 3rem; text-align: center;">
+            @if (User.Identity?.IsAuthenticated == true)
+            {
+                <a asp-controller="Dashboard" asp-action="Index" class="btn btn-secondary">
+                    <i data-lucide="layout-dashboard"></i> Volver al Escritorio de Control
+                </a>
+            }
+            else
+            {
+                <a asp-controller="Account" asp-action="Login" class="btn btn-secondary">
+                    <i data-lucide="log-in"></i> Acceso del Personal (Archivistas)
+                </a>
+            }
+        </div>
+    </div>
+
+    <script>lucide.createIcons();</script>
+</body>
+</html>

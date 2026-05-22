@@ -1,0 +1,64 @@
+@model Agent
+@{
+    ViewData["Title"] = $"Editar Agente: {Model.Name}";
+}
+
+<div style="max-width: 800px; margin: 0 auto;">
+    <div style="margin-bottom: 2rem;">
+        <a asp-action="Details" asp-route-id="@Model.Id" class="btn btn-secondary">
+            <i data-lucide="x"></i> Cancelar y Volver
+        </a>
+    </div>
+
+    <div class="glass-card">
+        <h3 style="border-bottom: 1px solid var(--border-color); padding-bottom: 0.5rem; margin-bottom: 1.5rem; color: #fff;">
+            Modificar Registro de Autoridad de Agente
+        </h3>
+
+        <form asp-action="Edit" method="post">
+            @Html.AntiForgeryToken()
+            <input type="hidden" asp-for="Id" />
+
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem;">
+                <div class="form-group">
+                    <label class="form-label">Tipo de Agente</label>
+                    <select asp-for="Type" required>
+                        <option value="Person">Persona (Person)</option>
+                        <option value="Family">Familia (Family)</option>
+                        <option value="Corporate">Entidad Corporativa (Corporate Body)</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Fuente del Nombre (Name Form Source - US 50)</label>
+                    <select asp-for="Source">
+                        <option value="local">Local (Catálogo Propio)</option>
+                        <option value="lcsh">Library of Congress Subject Headings (LCSH)</option>
+                        <option value="naf">Library of Congress Name Authority File (LCNAF)</option>
+                        <option value="viaf">Virtual International Authority File (VIAF)</option>
+                        <option value="ulan">Union List of Artist Names (ULAN)</option>
+                        <option value="gnd">Gemeinsame Normdatei (GND)</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">Nombre Completo, Familia o Razón Social</label>
+                <input type="text" asp-for="Name" class="form-control" placeholder="Ej. Alfaro, Eloy" required />
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">ID de Autoridad Normalizado (EAC-CPF)</label>
+                <input type="text" asp-for="AuthorityId" class="form-control" placeholder="Ej. http://id.loc.gov/authorities/names/n80050990" />
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">Información Biográfica / Histórica (EAC-CPF XML o Texto Plano)</label>
+                <textarea asp-for="EacCpfXml" class="form-control" rows="4" placeholder="Ingresa notas biográficas o fragmentos XML del perfil EAC-CPF..."></textarea>
+            </div>
+
+            <button type="submit" class="btn btn-warning" style="width: 100%; padding: 0.8rem; font-size: 1rem; color: #111; font-weight: 600;">
+                <i data-lucide="save"></i> Actualizar Registro de Agente
+            </button>
+        </form>
+    </div>
+</div>

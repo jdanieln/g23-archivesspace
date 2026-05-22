@@ -1,0 +1,78 @@
+@model List<Resource>
+@{
+    ViewData["Title"] = "Gestión de Recursos Archivísticos";
+}
+
+<div class="glass-card" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem;">
+    <div>
+        <p style="color: var(--text-muted); font-size: 0.9rem;">
+            Administra los fondos documentales, colecciones, series y catálogos en tu repositorio activo.
+        </p>
+    </div>
+    @if (!User.IsInRole("ReadOnly"))
+    {
+        <a asp-action="Create" class="btn btn-primary">
+            <i data-lucide="plus"></i> Crear Nuevo Recurso
+        </a>
+    }
+</div>
+
+<div class="glass-card">
+    @if (Model != null && Model.Any())
+    {
+        <div style="overflow-x: auto;">
+            <table style="width: 100%; border-collapse: collapse; text-align: left;">
+                <thead>
+                    <tr style="border-bottom: 1px solid var(--border-color); color: var(--text-muted); font-size: 0.85rem;">
+                        <th style="padding: 0.75rem;">Identificador</th>
+                        <th style="padding: 0.75rem;">Título</th>
+                        <th style="padding: 0.75rem;">Nivel de Descripción</th>
+                        <th style="padding: 0.75rem;">Fechas</th>
+                        <th style="padding: 0.75rem;">Repositorio</th>
+                        <th style="padding: 0.75rem; text-align: right;">Acciones</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var item in Model)
+                    {
+                        <tr style="border-bottom: 1px solid var(--border-color); font-size: 0.9rem;">
+                            <td style="padding: 0.75rem; font-family: monospace; font-weight: 500;">@item.Identifier</td>
+                            <td style="padding: 0.75rem; font-weight: 600; color: #fff;">@item.Title</td>
+                            <td style="padding: 0.75rem;">
+                                <span style="background: rgba(99, 102, 241, 0.15); color: var(--color-primary); padding: 2px 6px; border-radius: 4px; font-size: 0.8rem; font-weight: 600;">
+                                    @item.LevelOfDescription
+                                </span>
+                            </td>
+                            <td style="padding: 0.75rem;">@item.Dates</td>
+                            <td style="padding: 0.75rem; color: var(--text-muted);">@item.Repository?.Name</td>
+                            <td style="padding: 0.75rem; text-align: right; display: flex; gap: 0.4rem; justify-content: flex-end;">
+                                <a asp-action="Details" asp-route-id="@item.Id" class="btn btn-secondary" style="padding: 0.25rem 0.5rem; font-size: 0.75rem;">
+                                    <i data-lucide="eye" style="width: 14px; height: 14px;"></i> Ver
+                                </a>
+                                
+                                @if (!User.IsInRole("ReadOnly") && !User.IsInRole("BasicDataEntry"))
+                                {
+                                    <a asp-action="Edit" asp-route-id="@item.Id" class="btn btn-warning" style="padding: 0.25rem 0.5rem; font-size: 0.75rem;">
+                                        <i data-lucide="edit" style="width: 14px; height: 14px;"></i> Editar
+                                    </a>
+                                    <a asp-action="EditHierarchy" asp-route-id="@item.Id" class="btn btn-primary" style="padding: 0.25rem 0.5rem; font-size: 0.75rem;">
+                                        <i data-lucide="git-branch" style="width: 14px; height: 14px;"></i> Jerarquía
+                                    </a>
+                                }
+                                <a asp-action="ExportEad" asp-route-id="@item.Id" class="btn btn-secondary" style="padding: 0.25rem 0.5rem; font-size: 0.75rem; border-color: var(--color-accent); color: var(--color-accent);">
+                                    <i data-lucide="download" style="width: 14px; height: 14px;"></i> EAD
+                                </a>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    }
+    else
+    {
+        <p style="color: var(--text-muted); font-size: 0.9rem; text-align: center; padding: 2rem 0;">
+            No hay recursos creados aún en este repositorio.
+        </p>
+    }
+</div>

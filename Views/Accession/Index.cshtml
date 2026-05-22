@@ -1,0 +1,66 @@
+@model List<Accession>
+@{
+    ViewData["Title"] = "Gestión de Accessions (Ingresos Documentales)";
+}
+
+<div class="glass-card" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem;">
+    <div>
+        <p style="color: var(--text-muted); font-size: 0.9rem;">
+            Registra y cataloga donaciones, transferencias internas y adquisiciones de material documental hacia el archivo.
+        </p>
+    </div>
+    @if (!User.IsInRole("ReadOnly"))
+    {
+        <div style="display: flex; gap: 0.5rem;">
+            <a asp-controller="Import" asp-action="Index" class="btn btn-secondary">
+                <i data-lucide="upload-cloud"></i> Carga Masiva CSV
+            </a>
+            <a asp-action="Create" class="btn btn-primary">
+                <i data-lucide="plus"></i> Registrar Ingreso
+            </a>
+        </div>
+    }
+</div>
+
+<div class="glass-card">
+    @if (Model != null && Model.Any())
+    {
+        <div style="overflow-x: auto;">
+            <table style="width: 100%; border-collapse: collapse; text-align: left;">
+                <thead>
+                    <tr style="border-bottom: 1px solid var(--border-color); color: var(--text-muted); font-size: 0.85rem;">
+                        <th style="padding: 0.75rem;">Código de Ingreso</th>
+                        <th style="padding: 0.75rem;">Título descriptivo</th>
+                        <th style="padding: 0.75rem;">Fecha de Registro</th>
+                        <th style="padding: 0.75rem;">Fechas Material</th>
+                        <th style="padding: 0.75rem;">Repositorio</th>
+                        <th style="padding: 0.75rem; text-align: right;">Acción</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var item in Model)
+                    {
+                        <tr style="border-bottom: 1px solid var(--border-color); font-size: 0.9rem;">
+                            <td style="padding: 0.75rem; font-family: monospace; font-weight: 500;">@item.Identifier</td>
+                            <td style="padding: 0.75rem; font-weight: 600; color: #fff;">@item.Title</td>
+                            <td style="padding: 0.75rem;">@item.AccessionDate</td>
+                            <td style="padding: 0.75rem;">@item.Dates</td>
+                            <td style="padding: 0.75rem; color: var(--text-muted);">@item.Repository?.Name</td>
+                            <td style="padding: 0.75rem; text-align: right;">
+                                <a asp-action="Details" asp-route-id="@item.Id" class="btn btn-secondary" style="padding: 0.25rem 0.5rem; font-size: 0.75rem;">
+                                    <i data-lucide="eye" style="width: 14px; height: 14px;"></i> Ver Detalles
+                                </a>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    }
+    else
+    {
+        <p style="color: var(--text-muted); font-size: 0.9rem; text-align: center; padding: 2rem 0;">
+            No hay registros de ingresos creados aún.
+        </p>
+    }
+</div>

@@ -1,0 +1,230 @@
+@model Resource
+@{
+    Layout = null; // Standard standalone template for public print-friendly view (US 1)
+    var collMgmt = ViewBag.CollectionManagement as CollectionManagement;
+    var rights = ViewBag.RightsStatements as List<RightsStatement>;
+    var subjects = ViewBag.Subjects as List<Subject>;
+    var agents = ViewBag.Agents;
+    var components = ViewBag.Components as List<ArchivalObject>;
+}
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Finding Aid - @Model.Title</title>
+    <link rel="stylesheet" href="~/css/site.css" asp-append-version="true" />
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <style>
+        body {
+            background-color: #f1f5f9;
+            color: #1e293b;
+            padding: 3rem 1rem;
+        }
+        .print-btn-bar {
+            max-width: 900px;
+            margin: 0 auto 1.5rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+    </style>
+</head>
+<body>
+    
+    <div class="print-btn-bar">
+        <a asp-action="Index" class="btn btn-secondary">
+            <i data-lucide="arrow-left"></i> Volver al Buscador
+        </a>
+        <button onclick="window.print()" class="btn btn-primary">
+            <i data-lucide="printer"></i> Imprimir Guía (PDF)
+        </button>
+    </div>
+
+    <!-- Finding Aid Document Card (US 1) -->
+    <article class="finding-aid-document">
+        
+        <!-- Header -->
+        <header style="text-align: center; border-bottom: 3px double #cbd5e1; padding-bottom: 1.5rem; margin-bottom: 2rem;">
+            <span style="font-family: monospace; font-size: 0.9rem; color: #475569; letter-spacing: 0.05em; text-transform: uppercase;">
+                Instrumento de Descripción Archivística (Finding Aid)
+            </span>
+            <h1 style="font-size: 2.2rem; margin: 0.5rem 0 0.25rem;">@Model.Title</h1>
+            <p style="color: #64748b; font-size: 1rem; margin-top: 0.25rem;">
+                Custodiado por: <strong>@Model.Repository?.Name (@Model.Repository?.Code)</strong>
+            </p>
+        </header>
+
+        <!-- US 15: Dates and Extents displayed prominently BEFORE list of Subjects -->
+        <section>
+            <h2 class="section-title">Información de Control del Fondo</h2>
+            <table class="finding-aid-meta-table">
+                <tr>
+                    <td class="label-td">Fechas Extremas (Dates)</td>
+                    <td style="font-weight: 700; color: #1e3a8a; font-size: 1.1rem;">@Model.Dates</td>
+                </tr>
+                <tr>
+                    <td class="label-td">Extensión Física (Extents)</td>
+                    <td style="font-weight: 700; color: #1e3a8a; font-size: 1.1rem;">@Model.Extents</td>
+                </tr>
+                
+                <tr>
+                    <td class="label-td">Identificador de Colección</td>
+                    <td style="font-family: monospace; font-weight: 600;">@Model.Identifier</td>
+                </tr>
+                <tr>
+                    <td class="label-td">Nivel de Descripción</td>
+                    <td>
+                        @Model.LevelOfDescription
+                        @if (Model.LevelOfDescription == "Other" && !string.IsNullOrEmpty(Model.LevelOfDescriptionOther))
+                        {
+                            <span>(@Model.LevelOfDescriptionOther)</span>
+                        }
+                    </td>
+                </tr>
+                <tr>
+                    <td class="label-td">Idioma de la Descripción</td>
+                    <td>@Model.LanguageOfDescription</td>
+                </tr>
+                <tr>
+                    <td class="label-td">Autor del Finding Aid</td>
+                    <td>@Model.FindingAidAuthor</td>
+                </tr>
+                @if (!string.IsNullOrEmpty(Model.FindingAidSponsor))
+                {
+                    <tr>
+                        <td class="label-td">Patrocinio / Financiador</td>
+                        <td>@Model.FindingAidSponsor</td>
+                    </tr>
+                }
+            </table>
+        </section>
+
+        <!-- Subjects and Creators -->
+        <section style="margin-top: 2rem; display: grid; grid-template-columns: 1fr 1fr; gap: 2rem;">
+            
+            <!-- Subjects (US 53) -->
+            <div>
+                <h3 style="border-bottom: 2px solid #e2e8f0; padding-bottom: 0.25rem; margin-bottom: 0.75rem; color:#1e3a8a;">
+                    Materias Enlazadas
+                </h3>
+                @if (subjects != null && subjects.Any())
+                {
+                    <ul style="list-style: square; padding-left: 1.25rem; font-size: 0.9rem; display:flex; flex-direction:column; gap:0.4rem;">
+                        @foreach (var sub in subjects)
+                        {
+                            <li>
+                                <strong>@sub.Heading</strong>
+                                <div style="font-size: 0.75rem; color: #64748b;">Estructura: @sub.Source | Id: @sub.StandardIdentifier</div>
+                            </li>
+                        }
+                    </ul>
+                }
+                else
+                {
+                    <p style="color: #64748b; font-size: 0.85rem;">No hay materias indexadas.</p>
+                }
+            </div>
+
+            <!-- Agents / Producers (US 35) -->
+            <div>
+                <h3 style="border-bottom: 2px solid #e2e8f0; padding-bottom: 0.25rem; margin-bottom: 0.75rem; color:#1e3a8a;">
+                    Productores y Agentes
+                </h3>
+                @if (agents != null)
+                {
+                    <ul style="list-style: square; padding-left: 1.25rem; font-size: 0.9rem; display:flex; flex-direction:column; gap:0.4rem;">
+                        @foreach (var ag in agents)
+                        {
+                            <li>
+                                <strong>@ag.Agent.Name</strong>
+                                <div style="font-size: 0.75rem; color: #64748b;">Perfil: @ag.Agent.Type | Relación: <span style="color:#1e3a8a; font-weight:600;">@ag.Role</span></div>
+                            </li>
+                        }
+                    </ul>
+                }
+                else
+                {
+                    <p style="color: #64748b; font-size: 0.85rem;">No hay agentes vinculados.</p>
+                }
+            </div>
+
+        </section>
+
+        <!-- Rights Statements (US 41) -->
+        @if (rights != null && rights.Any())
+        {
+            <section style="margin-top: 2rem;">
+                <h2 class="section-title">Estatus de Propiedad Intelectual y Licencias</h2>
+                <div style="display: flex; flex-direction: column; gap: 0.75rem;">
+                    @foreach (var rt in rights)
+                    {
+                        <div style="border: 1px solid #cbd5e1; padding: 1rem; border-radius: 6px; background-color: #f8fafc; font-size: 0.9rem;">
+                            <div style="display: flex; justify-content: space-between; font-weight: 700; color: #0f172a;">
+                                <span>@rt.RightsType</span>
+                                <span style="background: #e2e8f0; padding: 2px 8px; border-radius: 4px; font-size: 0.75rem;">@rt.Status</span>
+                            </div>
+                            <p style="color: #475569; font-size: 0.85rem; margin-top: 0.5rem; line-height: 1.5;">
+                                @rt.Description
+                            </p>
+                        </div>
+                    }
+                </div>
+            </section>
+        }
+
+        <!-- Components Hierarchy (US 1) -->
+        <section style="margin-top: 2.5rem;">
+            <h2 class="section-title">Inventario Jerárquico y Cuadro de Clasificación</h2>
+            
+            @if (components != null && components.Any())
+            {
+                var levelMap = new Dictionary<int, int>();
+                <div style="display: flex; flex-direction: column; gap: 0.5rem; margin-top: 1rem;">
+                    @foreach (var comp in components.OrderBy(c => c.ParentId).ThenBy(c => c.Position))
+                    {
+                        int level = 0;
+                        if (comp.ParentId.HasValue && levelMap.TryGetValue(comp.ParentId.Value, out int parentLevel))
+                        {
+                            level = parentLevel + 1;
+                        }
+                        levelMap[comp.Id] = level;
+
+                        <div style="margin-left: @(level * 2)rem; padding: 0.6rem 1rem; border-left: 2px solid #cbd5e1; background: #f8fafc; border-radius: 4px; font-size: 0.85rem;">
+                            <div style="display: flex; justify-content: space-between; align-items: center;">
+                                <strong style="color: #0f172a;">@comp.Title</strong>
+                                <span style="font-family: monospace; font-size: 0.75rem; color: #64748b;">@comp.ComponentIdentifier</span>
+                            </div>
+                            <div style="display: flex; gap: 1.5rem; font-size: 0.75rem; color: #475569; margin-top: 2px;">
+                                <span>Nivel: <strong>@comp.LevelOfDescription</strong></span>
+                                <span>Fechas: <strong>@comp.Dates</strong></span>
+                                @if(!string.IsNullOrEmpty(comp.Extents))
+                                {
+                                    <span>Extensión: @comp.Extents</span>
+                                }
+                            </div>
+                        </div>
+                    }
+                </div>
+            }
+            else
+            {
+                <p style="color: #64748b; font-size: 0.9rem; text-align: center; padding: 1.5rem 0;">
+                    Este recurso no posee componentes o subdivisiones catalogadas en el inventario.
+                </p>
+            }
+        </section>
+
+        <!-- Finding Aid administrative footer note -->
+        @if (!string.IsNullOrEmpty(Model.FindingAidNote))
+        {
+            <footer style="margin-top: 3rem; border-top: 1px solid #cbd5e1; padding-top: 1rem; font-size: 0.8rem; color: #64748b; font-style: italic;">
+                Nota del catalogador: @Model.FindingAidNote
+            </footer>
+        }
+
+    </article>
+
+    <script>lucide.createIcons();</script>
+</body>
+</html>

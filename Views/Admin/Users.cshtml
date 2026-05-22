@@ -1,0 +1,196 @@
+@model List<User>
+@{
+    ViewData["Title"] = "Gestión de Cuentas y Accesos";
+}
+
+<div class="glass-card" style="display: flex; justify-content: space-between; align-items: center; border-left: 4px solid var(--color-warning);">
+    <div>
+        <p style="color: var(--text-muted); font-size: 0.9rem; margin: 0;">
+            Administración central de cuentas locales, contraseñas, perfiles de roles y alcances institucionales.
+        </p>
+    </div>
+</div>
+
+<div style="display: grid; grid-template-columns: 1fr 2fr; gap: 1.5rem; margin-top: 1.5rem;">
+
+    <!-- Create User Account Form (US 25) -->
+    <div class="glass-card">
+        <h3 style="border-bottom: 1px solid var(--border-color); padding-bottom: 0.5rem; margin-bottom: 1.25rem; color: #fff;">
+            Provisionar Usuario
+        </h3>
+        
+        <form asp-action="CreateUser" method="post">
+            @Html.AntiForgeryToken()
+            <div class="form-group">
+                <label class="form-label">Nombre de Usuario</label>
+                <input type="text" name="username" class="form-control" placeholder="Ej. juan_archivista" required />
+            </div>
+            
+            <div class="form-group">
+                <label class="form-label">Contraseña Inicial</label>
+                <input type="password" name="password" class="form-control" placeholder="Mínimo 6 caracteres" required />
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">Método de Autenticación</label>
+                <select name="authMode" required>
+                    <option value="Local">Base de Datos Local</option>
+                    <option value="LDAP">LDAP Institucional</option>
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">Rol del Sistema (US 21)</label>
+                <select name="role" required>
+                    <option value="ReadOnly">Solo Lectura (ReadOnly)</option>
+                    <option value="BasicDataEntry">Captura Básica (BasicDataEntry)</option>
+                    <option value="AdvancedDataEntry">Captura Avanzada (AdvancedDataEntry)</option>
+                    <option value="RepositoryManager">Administrador de Repositorio (RepositoryManager)</option>
+                    <option value="SystemAdmin">Administrador General (SystemAdmin)</option>
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">Repositorio Asignado</label>
+                <select name="repositoryId">
+                    <option value="0">-- Ninguno (Acceso Global) --</option>
+                    @foreach (var repo in ViewBag.Repositories)
+                    {
+                        <option value="@repo.Id">@repo.Name</option>
+                    }
+                </select>
+            </div>
+
+            <button type="submit" class="btn btn-primary" style="width: 100%;">
+                <i data-lucide="user-plus"></i> Crear Cuenta
+            </button>
+        </form>
+    </div>
+
+    <!-- Active User Accounts list with utilities (US 2, 49) -->
+    <div class="glass-card">
+        <h3 style="border-bottom: 1px solid var(--border-color); padding-bottom: 0.5rem; margin-bottom: 1.25rem; color: #fff;">
+            Cuentas Activas Registradas
+        </h3>
+
+        @if (Model != null && Model.Any())
+        {
+            <div style="overflow-x: auto;">
+                <table style="width: 100%; border-collapse: collapse; text-align: left; font-size: 0.9rem;">
+                    <thead>
+                        <tr style="border-bottom: 1px solid var(--border-color); color: var(--text-muted); font-size: 0.85rem;">
+                            <th style="padding: 0.5rem;">Usuario</th>
+                            <th style="padding: 0.5rem;">Modo</th>
+                            <th style="padding: 0.5rem;">Rol Asignado</th>
+                            <th style="padding: 0.5rem;">Repositorio</th>
+                            <th style="padding: 0.5rem; text-align: right;">Acciones de Control</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var user in Model)
+                        {
+                            <tr style="border-bottom: 1px solid var(--border-color);">
+                                <td style="padding: 0.75rem; font-weight: 600; color: #fff;">@user.Username</td>
+                                <td style="padding: 0.75rem;">
+                                    <span style="font-size: 0.75rem; background: var(--bg-surface-elevated); padding: 2px 6px; border-radius: 4px;">
+                                        @user.AuthMode
+                                    </span>
+                                </td>
+                                <td style="padding: 0.75rem;">
+                                    <span style="color: @(user.Role == "SystemAdmin" ? "var(--color-warning)" : (user.Role == "RepositoryManager" ? "var(--color-primary)" : "var(--text-main)")); font-weight:600;">
+                                        @user.Role
+                                    </span>
+                                </td>
+                                <td style="padding: 0.75rem; color: var(--text-muted);">
+                                    @(user.Repository?.Name ?? "Acceso Completo (Global)")
+                                </td>
+                                <td style="padding: 0.75rem; text-align: right; display: flex; gap: 0.4rem; justify-content: flex-end; align-items: center;">
+                                    <!-- US 2: Reset password utility -->
+                                    <button class="btn btn-secondary" style="padding: 0.25rem 0.5rem; font-size: 0.75rem;" onclick="promptResetPassword(@user.Id, '@user.Username')">
+                                        Clave
+                                    </button>
+
+                                    <!-- US 49: Declare Repository Manager role -->
+                                    @if (user.Role != "SystemAdmin")
+                                    {
+                                        <button class="btn btn-primary" style="padding: 0.25rem 0.5rem; font-size: 0.75rem;" onclick="promptAssignManager(@user.Id, '@user.Username')">
+                                            Asignar RM
+                                        </button>
+                                    }
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+    </div>
+
+</div>
+
+<!-- Reset Password Dialog Overlay (US 2) -->
+<div id="reset-password-modal" style="display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.8); z-index: 9999; align-items: center; justify-content: center;">
+    <div class="glass-card" style="width: 420px;">
+        <h3 style="border-bottom: 1px solid var(--border-color); padding-bottom: 0.5rem; margin-bottom: 1.25rem; color: #fff;">
+            Restablecer Contraseña
+        </h3>
+        <p id="reset-modal-text" style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 1rem;"></p>
+        
+        <form asp-action="ResetPassword" method="post">
+            @Html.AntiForgeryToken()
+            <input type="hidden" name="id" id="resetUserId" />
+            <div class="form-group">
+                <label class="form-label">Nueva Contraseña</label>
+                <input type="password" name="newPassword" class="form-control" required placeholder="Ingresa la nueva clave..." />
+            </div>
+            <div style="display: flex; gap: 0.5rem; margin-top: 1.5rem;">
+                <button type="submit" class="btn btn-primary" style="flex: 1;">Restablecer</button>
+                <button type="button" class="btn btn-secondary" onclick="document.getElementById('reset-password-modal').style.display='none'">Cancelar</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Assign Manager Dialog Overlay (US 49) -->
+<div id="assign-manager-modal" style="display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.8); z-index: 9999; align-items: center; justify-content: center;">
+    <div class="glass-card" style="width: 440px;">
+        <h3 style="border-bottom: 1px solid var(--border-color); padding-bottom: 0.5rem; margin-bottom: 1.25rem; color: #fff;">
+            Declarar Repository Manager (US 49)
+        </h3>
+        <p id="manager-modal-text" style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 1rem;"></p>
+        
+        <form asp-action="AssignRepoManager" method="post">
+            @Html.AntiForgeryToken()
+            <input type="hidden" name="id" id="managerUserId" />
+            <div class="form-group">
+                <label class="form-label">Seleccionar Repositorio Asignado</label>
+                <select name="repositoryId" required>
+                    @foreach (var repo in ViewBag.Repositories)
+                    {
+                        <option value="@repo.Id">@repo.Name (@repo.Code)</option>
+                    }
+                </select>
+            </div>
+            <div style="display: flex; gap: 0.5rem; margin-top: 1.5rem;">
+                <button type="submit" class="btn btn-primary" style="flex: 1;">Guardar Asignación</button>
+                <button type="button" class="btn btn-secondary" onclick="document.getElementById('assign-manager-modal').style.display='none'">Cancelar</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        function promptResetPassword(userId, username) {
+            document.getElementById('resetUserId').value = userId;
+            document.getElementById('reset-modal-text').innerHTML = `Vas a restablecer la clave de acceso local del usuario: <strong>${username}</strong>.`;
+            document.getElementById('reset-password-modal').style.display = 'flex';
+        }
+
+        function promptAssignManager(userId, username) {
+            document.getElementById('managerUserId').value = userId;
+            document.getElementById('manager-modal-text').innerHTML = `Declarar a <strong>${username}</strong> como <strong>Repository Manager</strong>. Selecciona el repositorio de su competencia:`;
+            document.getElementById('assign-manager-modal').style.display = 'flex';
+        }
+    </script>
+}

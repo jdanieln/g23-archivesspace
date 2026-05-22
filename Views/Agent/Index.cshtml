@@ -1,0 +1,77 @@
+@model List<Agent>
+@{
+    ViewData["Title"] = "Gestión de Agentes (Creadores y Autoridades)";
+}
+
+<div class="glass-card" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem;">
+    <div>
+        <p style="color: var(--text-muted); font-size: 0.9rem;">
+            Administra los agentes (personas, familias u organizaciones corporativas) que actúan como creadores, fuentes o materias de tus recursos o ingresos.
+        </p>
+    </div>
+    @if (!User.IsInRole("ReadOnly"))
+    {
+        <div style="display: flex; gap: 0.5rem;">
+            <a asp-controller="Import" asp-action="Index" class="btn btn-secondary">
+                <i data-lucide="upload-cloud"></i> Cargar EAC-CPF XML
+            </a>
+            <a asp-action="Create" class="btn btn-primary">
+                <i data-lucide="plus"></i> Registrar Agente
+            </a>
+        </div>
+    }
+</div>
+
+<div class="glass-card">
+    @if (Model != null && Model.Any())
+    {
+        <div style="overflow-x: auto;">
+            <table style="width: 100%; border-collapse: collapse; text-align: left;">
+                <thead>
+                    <tr style="border-bottom: 1px solid var(--border-color); color: var(--text-muted); font-size: 0.85rem;">
+                        <th style="padding: 0.75rem;">Nombre Completo / Razón Social</th>
+                        <th style="padding: 0.75rem;">Tipo de Agente</th>
+                        <th style="padding: 0.75rem;">ID de Autoridad (EAC)</th>
+                        <th style="padding: 0.75rem;">Fuente del Nombre</th>
+                        <th style="padding: 0.75rem; text-align: right;">Acciones</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var item in Model)
+                    {
+                        <tr style="border-bottom: 1px solid var(--border-color); font-size: 0.9rem;">
+                            <td style="padding: 0.75rem; font-weight: 600; color: #fff;">@item.Name</td>
+                            <td style="padding: 0.75rem;">
+                                <span style="background: rgba(99, 102, 241, 0.15); color: var(--color-primary); padding: 2px 6px; border-radius: 4px; font-weight: 500; font-size: 0.8rem;">
+                                    @item.Type
+                                </span>
+                            </td>
+                            <td style="padding: 0.75rem; font-family: monospace; font-size: 0.85rem;">@item.AuthorityId</td>
+                            <td style="padding: 0.75rem; color: var(--text-muted);">@item.Source</td>
+                            <td style="padding: 0.75rem; text-align: right; display: flex; justify-content: flex-end; gap: 0.4rem;">
+                                <a asp-action="Details" asp-route-id="@item.Id" class="btn btn-secondary" style="padding: 0.25rem 0.5rem; font-size: 0.75rem; display: inline-flex; align-items: center; gap: 0.25rem;">
+                                    <i data-lucide="eye" style="width: 14px; height: 14px;"></i> Ver
+                                </a>
+                                @if (!User.IsInRole("ReadOnly") && !User.IsInRole("BasicDataEntry"))
+                                {
+                                    <a asp-action="Edit" asp-route-id="@item.Id" class="btn btn-warning" style="padding: 0.25rem 0.5rem; font-size: 0.75rem; display: inline-flex; align-items: center; gap: 0.25rem;">
+                                        <i data-lucide="edit" style="width: 14px; height: 14px;"></i> Editar
+                                    </a>
+                                }
+                                <a asp-action="ExportEacCpf" asp-route-id="@item.Id" class="btn btn-secondary" style="padding: 0.25rem 0.5rem; font-size: 0.75rem; border-color: var(--color-accent); color: var(--color-accent); display: inline-flex; align-items: center; gap: 0.25rem;">
+                                    <i data-lucide="download" style="width: 14px; height: 14px;"></i> EAC
+                                </a>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    }
+    else
+    {
+        <p style="color: var(--text-muted); font-size: 0.9rem; text-align: center; padding: 2rem 0;">
+            No hay registros de agentes creados aún.
+        </p>
+    }
+</div>

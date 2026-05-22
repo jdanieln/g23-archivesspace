@@ -1,0 +1,73 @@
+@model Resource
+@{
+    ViewData["Title"] = $"Estructurar Jerarquía: {Model.Title}";
+    var components = ViewBag.Components as List<ArchivalObject>;
+}
+
+<div style="margin-bottom: 2rem; display: flex; justify-content: space-between; align-items: center;">
+    <a asp-action="Details" asp-route-id="@Model.Id" class="btn btn-secondary">
+        <i data-lucide="arrow-left"></i> Volver a Detalles
+    </a>
+    <div>
+        <span style="color: var(--color-warning); font-size: 0.85rem; font-weight: 600;">
+            <i data-lucide="keyboard" style="display:inline-block; vertical-align:middle; margin-right:4px;"></i>
+            ¡Soporta Reordenación Teclado Activa!
+        </span>
+    </div>
+</div>
+
+<div class="glass-card" style="border-left: 4px solid var(--color-primary);">
+    <h3>Organizador de Jerarquía de Recursos</h3>
+    <p style="color: var(--text-muted); font-size: 0.85rem; margin-top: 4px; margin-bottom: 1.5rem;">
+        Puedes estructurar la jerarquía del fondo documental de dos formas:<br/>
+        1. <strong>Arrastrar y Soltar (Drag & Drop):</strong> Arrastra un nodo para cambiar su orden en la lista.<br/>
+        2. <strong>Control por Teclado:</strong> Haz clic en un nodo para seleccionarlo. Usa <strong>Flechas Arriba/Abajo</strong> para navegar, <strong>Flechas Derecha/Izquierda</strong> para indentar/desindentar (cambiar nivel de parentesco), y <strong>Alt + Flecha Arriba/Abajo</strong> para subir o bajar el elemento en la secuencia.
+    </p>
+
+    <!-- Flat tree rendered with custom visual indents -->
+    <div id="hierarchy-tree-container" style="display: flex; flex-direction: column; gap: 0.25rem; background: rgba(0,0,0,0.2); padding: 1.5rem; border-radius: var(--radius-sm); min-height: 250px;">
+        @if (components != null && components.Any())
+        {
+            // Estimate visual indentation levels based on ParentId chains
+            var levelMap = new Dictionary<int, int>();
+            foreach (var comp in components.OrderBy(c => c.ParentId).ThenBy(c => c.Position))
+            {
+                int level = 0;
+                if (comp.ParentId.HasValue && levelMap.TryGetValue(comp.ParentId.Value, out int parentLevel))
+                {
+                    level = parentLevel + 1;
+                }
+                levelMap[comp.Id] = level;
+
+                <div class="hierarchy-node hierarchy-indent-@level" 
+                     draggable="true" 
+                     tabindex="0"
+                     data-id="@comp.Id" 
+                     data-level="@level"
+                     style="outline: none;">
+                    <i data-lucide="grip-vertical" style="cursor: grab; color: var(--text-muted); width: 16px; height: 16px;"></i>
+                    <i data-lucide="file-text" style="color: var(--color-primary); width: 18px; height: 18px;"></i>
+                    <div style="flex: 1; display: flex; justify-content: space-between; align-items: center;">
+                        <span style="font-weight: 600; color: #fff; font-size: 0.9rem;">@comp.Title</span>
+                        <div style="display: flex; gap: 1rem; align-items: center;">
+                            <span style="font-family: monospace; font-size: 0.75rem; color: var(--text-muted);">@comp.ComponentIdentifier</span>
+                            <span style="font-size: 0.75rem; background: var(--bg-surface-elevated); padding: 2px 6px; border-radius: 4px; color: var(--color-secondary); font-weight: 600;">
+                                @comp.LevelOfDescription
+                            </span>
+                        </div>
+                    </div>
+                </div>
+            }
+        }
+        else
+        {
+            <p style="color: var(--text-muted); text-align: center; padding: 3rem 0; font-size: 0.9rem;">
+                No hay componentes agregados en este recurso para ordenar.
+            </p>
+        }
+    </div>
+</div>
+
+@section Scripts {
+    <script src="~/js/hierarchy.js" asp-append-version="true"></script>
+}

@@ -1,0 +1,78 @@
+@model Accession
+@{
+    ViewData["Title"] = "Registrar Nuevo Ingreso Documental (Accession)";
+}
+
+<div style="max-width: 800px; margin: 0 auto;">
+    <div style="margin-bottom: 2rem;">
+        <a asp-action="Index" class="btn btn-secondary">
+            <i data-lucide="arrow-left"></i> Cancelar y Volver
+        </a>
+    </div>
+
+    <div class="glass-card">
+        <h3 style="border-bottom: 1px solid var(--border-color); padding-bottom: 0.5rem; margin-bottom: 1.5rem; color: #fff;">
+            Formulario de Registro de Ingreso
+        </h3>
+
+        <form asp-action="Create" method="post">
+            @Html.AntiForgeryToken()
+
+            <div class="form-group">
+                <label class="form-label">Título Descriptivo del Ingreso</label>
+                <input type="text" asp-for="Title" class="form-control" placeholder="Ej. Donación de la Familia Santillana" required />
+            </div>
+
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem;">
+                <div class="form-group">
+                    <label class="form-label">Identificador de Ingreso</label>
+                    <input type="text" asp-for="Identifier" class="form-control" placeholder="Ej. ACC-2026-001" required />
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Repositorio de Custodia</label>
+                    <select asp-for="RepositoryId" required>
+                        @foreach (var repo in ViewBag.Repositories)
+                        {
+                            <option value="@repo.Id">@repo.Name (@repo.Code)</option>
+                        }
+                    </select>
+                </div>
+            </div>
+
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem;">
+                <div class="form-group">
+                    <label class="form-label">Fecha de Ingreso / Transferencia</label>
+                    <input type="date" asp-for="AccessionDate" class="form-control" value="@DateTime.Now.ToString("yyyy-MM-dd")" required />
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Fechas Extremas del Material (Dates)</label>
+                    <input type="text" asp-for="Dates" class="form-control" placeholder="Ej. 1910 - 1945" />
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">Extensión Física (Extents)</label>
+                <input type="text" asp-for="Extents" class="form-control" placeholder="Ej. 3 Cajas de Archivo, 1 Rollo de Microfilm" />
+            </div>
+
+            <!-- Migration testing source fields (US 7) -->
+            <div style="background: rgba(245, 158, 11, 0.05); border: 1px dashed rgba(245, 158, 11, 0.3); padding: 1rem; border-radius: var(--radius-sm); margin-bottom: 2rem;">
+                <h4 style="color: var(--color-warning); font-size: 0.9rem; margin-bottom: 0.5rem;">Metadatos de Integridad (Opcional - Migración)</h4>
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                    <div>
+                        <label class="form-label" style="font-size: 0.8rem;">ID Registro Origen (Archon/AT)</label>
+                        <input type="text" asp-for="SourceRecordId" class="form-control" style="padding: 0.5rem; font-size: 0.85rem;" placeholder="Ej. AT-ACC-0044" />
+                    </div>
+                    <div>
+                        <label class="form-label" style="font-size: 0.8rem;">Sistema Origen</label>
+                        <input type="text" asp-for="SourceSystem" class="form-control" style="padding: 0.5rem; font-size: 0.85rem;" placeholder="Ej. Archon" />
+                    </div>
+                </div>
+            </div>
+
+            <button type="submit" class="btn btn-primary" style="width: 100%; padding: 0.8rem; font-size: 1rem;">
+                <i data-lucide="save"></i> Registrar Ingreso en Base de Datos
+            </button>
+        </form>
+    </div>
+</div>

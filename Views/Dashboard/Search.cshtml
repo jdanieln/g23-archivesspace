@@ -1,0 +1,182 @@
+@model ArchivesSpaceWeb.Domains.Admin.Controllers.SearchResultViewModel
+@{
+    ViewData["Title"] = "Resultados de Búsqueda";
+}
+
+<!-- Filters Bar -->
+<div class="glass-card">
+    <form asp-controller="Dashboard" asp-action="Search" method="get" style="display: flex; gap: 1rem; align-items: flex-end; flex-wrap: wrap;">
+        <div style="flex: 1; min-width: 250px;">
+            <label class="form-label">Término de Búsqueda</label>
+            <input type="text" name="query" value="@ViewBag.Query" placeholder="Buscar título, identificador, fechas..." class="form-control" required />
+        </div>
+        <div style="width: 280px;">
+            <label class="form-label">Filtrar por Repositorio</label>
+            <select name="repositoryId">
+                <option value="0">-- Todos los Repositorios --</option>
+                @foreach (var repo in ViewBag.Repositories)
+                {
+                    if (ViewBag.SelectedRepositoryId == repo.Id)
+                    {
+                        <option value="@repo.Id" selected>@repo.Name</option>
+                    }
+                    else
+                    {
+                        <option value="@repo.Id">@repo.Name</option>
+                    }
+                }
+            </select>
+        </div>
+        <div>
+            <button type="submit" class="btn btn-primary" style="padding: 0.75rem 1.5rem;">
+                <i data-lucide="search"></i> Buscar
+            </button>
+        </div>
+    </form>
+</div>
+
+@if (!string.IsNullOrEmpty(ViewBag.Query))
+{
+    <p style="color: var(--text-muted); margin-bottom: 1.5rem; font-size: 0.95rem;">
+        Se muestran los resultados correspondientes a: <strong>"@ViewBag.Query"</strong>
+    </p>
+
+    <!-- Tabbed or sectioned layout for search results -->
+    <div style="display: flex; flex-direction: column; gap: 2rem;">
+        
+        <!-- Resources Results -->
+        <div class="glass-card">
+            <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border-color); padding-bottom: 0.5rem; margin-bottom: 1rem;">
+                <h3 style="margin: 0; display: flex; align-items: center; gap: 0.5rem;">
+                    <i data-lucide="folder-tree" style="color: var(--color-primary);"></i>
+                    Recursos / Colecciones (@Model.Resources.Count)
+                </h3>
+            </div>
+            
+            @if (Model.Resources.Any())
+            {
+                <div style="overflow-x: auto;">
+                    <table style="width: 100%; border-collapse: collapse; text-align: left;">
+                        <thead>
+                            <tr style="border-bottom: 1px solid var(--border-color); color: var(--text-muted); font-size: 0.85rem;">
+                                <th style="padding: 0.75rem;">Identificador</th>
+                                <th style="padding: 0.75rem;">Título</th>
+                                <th style="padding: 0.75rem;">Fechas</th>
+                                <th style="padding: 0.75rem;">Repositorio</th>
+                                <th style="padding: 0.75rem; text-align: right;">Acciones</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var res in Model.Resources)
+                            {
+                                <tr style="border-bottom: 1px solid var(--border-color); font-size: 0.9rem;">
+                                    <td style="padding: 0.75rem; font-family: monospace;">@res.Identifier</td>
+                                    <td style="padding: 0.75rem; font-weight: 600; color: #fff;">@res.Title</td>
+                                    <td style="padding: 0.75rem;">@res.Dates</td>
+                                    <td style="padding: 0.75rem; color: var(--text-muted);">@res.Repository?.Name</td>
+                                    <td style="padding: 0.75rem; text-align: right;">
+                                        <a asp-controller="Resource" asp-action="Details" asp-route-id="@res.Id" class="btn btn-secondary" style="padding: 0.25rem 0.6rem; font-size: 0.8rem;">
+                                            Ver Detalles
+                                        </a>
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            }
+            else
+            {
+                <p style="color: var(--text-muted); font-size: 0.85rem; padding: 1rem 0;">No se encontraron recursos coincidentes.</p>
+            }
+        </div>
+
+        <!-- Accessions Results -->
+        <div class="glass-card">
+            <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border-color); padding-bottom: 0.5rem; margin-bottom: 1rem;">
+                <h3 style="margin: 0; display: flex; align-items: center; gap: 0.5rem;">
+                    <i data-lucide="file-plus" style="color: var(--color-accent);"></i>
+                    Accessions / Ingresos (@Model.Accessions.Count)
+                </h3>
+            </div>
+            
+            @if (Model.Accessions.Any())
+            {
+                <div style="overflow-x: auto;">
+                    <table style="width: 100%; border-collapse: collapse; text-align: left;">
+                        <thead>
+                            <tr style="border-bottom: 1px solid var(--border-color); color: var(--text-muted); font-size: 0.85rem;">
+                                <th style="padding: 0.75rem;">Identificador</th>
+                                <th style="padding: 0.75rem;">Título</th>
+                                <th style="padding: 0.75rem;">Fecha Ingreso</th>
+                                <th style="padding: 0.75rem;">Repositorio</th>
+                                <th style="padding: 0.75rem; text-align: right;">Acciones</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var acc in Model.Accessions)
+                            {
+                                <tr style="border-bottom: 1px solid var(--border-color); font-size: 0.9rem;">
+                                    <td style="padding: 0.75rem; font-family: monospace;">@acc.Identifier</td>
+                                    <td style="padding: 0.75rem; font-weight: 600; color: #fff;">@acc.Title</td>
+                                    <td style="padding: 0.75rem;">@acc.AccessionDate</td>
+                                    <td style="padding: 0.75rem; color: var(--text-muted);">@acc.Repository?.Name</td>
+                                    <td style="padding: 0.75rem; text-align: right;">
+                                        <a asp-controller="Accession" asp-action="Details" asp-route-id="@acc.Id" class="btn btn-secondary" style="padding: 0.25rem 0.6rem; font-size: 0.8rem;">
+                                            Ver Detalles
+                                        </a>
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            }
+            else
+            {
+                <p style="color: var(--text-muted); font-size: 0.85rem; padding: 1rem 0;">No se encontraron ingresos coincidentes.</p>
+            }
+        </div>
+
+        <!-- Digital Objects Results -->
+        <div class="glass-card">
+            <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border-color); padding-bottom: 0.5rem; margin-bottom: 1rem;">
+                <h3 style="margin: 0; display: flex; align-items: center; gap: 0.5rem;">
+                    <i data-lucide="image" style="color: var(--color-warning);"></i>
+                    Objetos Digitales (@Model.DigitalObjects.Count)
+                </h3>
+            </div>
+            
+            @if (Model.DigitalObjects.Any())
+            {
+                <div style="overflow-x: auto;">
+                    <table style="width: 100%; border-collapse: collapse; text-align: left;">
+                        <thead>
+                            <tr style="border-bottom: 1px solid var(--border-color); color: var(--text-muted); font-size: 0.85rem;">
+                                <th style="padding: 0.75rem;">Identificador</th>
+                                <th style="padding: 0.75rem;">Título</th>
+                                <th style="padding: 0.75rem;">URI del Archivo</th>
+                                <th style="padding: 0.75rem;">Repositorio</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var dobj in Model.DigitalObjects)
+                            {
+                                <tr style="border-bottom: 1px solid var(--border-color); font-size: 0.9rem;">
+                                    <td style="padding: 0.75rem; font-family: monospace;">@dobj.Identifier</td>
+                                    <td style="padding: 0.75rem; font-weight: 600; color: #fff;">@dobj.Title</td>
+                                    <td style="padding: 0.75rem; font-family: monospace; color: var(--color-secondary);">@dobj.FileUri</td>
+                                    <td style="padding: 0.75rem; color: var(--text-muted);">@dobj.Repository?.Name</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            }
+            else
+            {
+                <p style="color: var(--text-muted); font-size: 0.85rem; padding: 1rem 0;">No se encontraron objetos digitales coincidentes.</p>
+            }
+        </div>
+    </div>
+}

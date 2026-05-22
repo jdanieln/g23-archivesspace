@@ -1,0 +1,478 @@
+/*
+ * ArchivesSpaceWeb (G23) Premium Design System
+ * Dark Slate & Vibrant Accents Theme
+ */
+
+@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=Plus+Jakarta+Sans:wght@300;400;500;600;700&display=swap');
+
+:root {
+    --font-heading: 'Outfit', 'Plus Jakarta Sans', sans-serif;
+    --font-body: 'Plus Jakarta Sans', system-ui, sans-serif;
+
+    /* Theme Palette */
+    --bg-base: #0f172a;
+    --bg-surface: #1e293b;
+    --bg-surface-elevated: #334155;
+    
+    --color-primary: #6366f1; /* Indigo */
+    --color-primary-hover: #4f46e5;
+    --color-secondary: #0ea5e9; /* Sky Blue */
+    --color-accent: #10b981; /* Emerald */
+    --color-warning: #f59e0b; /* Amber */
+    --color-danger: #ef4444; /* Rose */
+    
+    --text-main: #f8fafc;
+    --text-muted: #94a3b8;
+    --text-inverse: #0f172a;
+    
+    --border-color: rgba(255, 255, 255, 0.08);
+    --border-color-hover: rgba(255, 255, 255, 0.16);
+    
+    --glass-bg: rgba(30, 41, 59, 0.7);
+    --glass-border: rgba(255, 255, 255, 0.06);
+    
+    --radius-sm: 6px;
+    --radius-md: 12px;
+    --radius-lg: 20px;
+    
+    --shadow-sm: 0 2px 4px rgba(0,0,0,0.1);
+    --shadow-md: 0 10px 15px -3px rgba(0,0,0,0.3), 0 4px 6px -4px rgba(0,0,0,0.3);
+    --shadow-lg: 0 20px 25px -5px rgba(0,0,0,0.5), 0 8px 10px -6px rgba(0,0,0,0.5);
+    
+    --transition-fast: 0.15s ease;
+    --transition-normal: 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Base resets & layouts */
+* {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+}
+
+body {
+    background-color: var(--bg-base);
+    color: var(--text-main);
+    font-family: var(--font-body);
+    font-size: 15px;
+    line-height: 1.6;
+    overflow-x: hidden;
+}
+
+h1, h2, h3, h4, h5, h6 {
+    font-family: var(--font-heading);
+    font-weight: 600;
+    letter-spacing: -0.02em;
+    color: #fff;
+    margin-bottom: 0.5rem;
+}
+
+a {
+    color: var(--color-secondary);
+    text-decoration: none;
+    transition: var(--transition-fast);
+}
+a:hover {
+    color: var(--color-primary);
+}
+
+/* Master Layout Structure */
+.app-wrapper {
+    display: flex;
+    min-height: 100vh;
+}
+
+/* Sidebar Navigation */
+.app-sidebar {
+    width: 280px;
+    background: var(--bg-surface);
+    border-right: 1px solid var(--border-color);
+    padding: 1.5rem;
+    display: flex;
+    flex-direction: column;
+    position: fixed;
+    top: 0;
+    bottom: 0;
+    left: 0;
+    z-index: 100;
+    transition: var(--transition-normal);
+}
+
+.brand-section {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding-bottom: 2rem;
+    border-bottom: 1px solid var(--border-color);
+    margin-bottom: 1.5rem;
+}
+
+.brand-logo {
+    width: 40px;
+    height: 40px;
+    background: linear-gradient(135deg, var(--color-primary), var(--color-secondary));
+    border-radius: var(--radius-md);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    font-weight: bold;
+    font-size: 1.25rem;
+}
+
+.brand-name {
+    font-size: 1.25rem;
+    font-weight: 700;
+    background: linear-gradient(135deg, #fff 40%, var(--text-muted));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+}
+
+.nav-menu {
+    list-style: none;
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+}
+
+.nav-item a {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.75rem 1rem;
+    color: var(--text-muted);
+    font-weight: 500;
+    border-radius: var(--radius-md);
+    transition: var(--transition-normal);
+}
+
+.nav-item.active a, .nav-item a:hover {
+    color: #fff;
+    background: var(--bg-surface-elevated);
+}
+
+.nav-item.active a {
+    border-left: 3px solid var(--color-primary);
+}
+
+.sidebar-footer {
+    margin-top: auto;
+    padding-top: 1rem;
+    border-top: 1px solid var(--border-color);
+}
+
+/* Main Content Area */
+.app-main {
+    flex: 1;
+    margin-left: 280px;
+    padding: 2rem;
+    transition: var(--transition-normal);
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+}
+
+/* Top bar / Navbar details */
+.top-navbar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 2rem;
+    padding-bottom: 1rem;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.navbar-user-section {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+}
+
+/* Premium UI Cards - Glassmorphism style */
+.glass-card {
+    background: var(--glass-bg);
+    border: 1px solid var(--glass-border);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    border-radius: var(--radius-md);
+    padding: 1.5rem;
+    margin-bottom: 1.5rem;
+    box-shadow: var(--shadow-md);
+    transition: transform var(--transition-fast), border-color var(--transition-fast);
+}
+.glass-card:hover {
+    border-color: var(--border-color-hover);
+}
+
+/* Forms & Inputs */
+.form-group {
+    margin-bottom: 1.25rem;
+}
+
+.form-label {
+    display: block;
+    color: var(--text-muted);
+    font-weight: 500;
+    font-size: 0.9rem;
+    margin-bottom: 0.5rem;
+}
+
+.form-control, select, textarea {
+    width: 100%;
+    background-color: var(--bg-surface-elevated);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-sm);
+    color: #fff;
+    padding: 0.75rem 1rem;
+    font-family: var(--font-body);
+    font-size: 0.95rem;
+    transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
+}
+
+.form-control:focus, select:focus, textarea:focus {
+    outline: none;
+    border-color: var(--color-primary);
+    box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.2);
+}
+
+/* Buttons System */
+.btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    padding: 0.65rem 1.25rem;
+    font-weight: 600;
+    font-size: 0.9rem;
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    transition: var(--transition-normal);
+    border: none;
+}
+
+.btn-primary {
+    background: linear-gradient(135deg, var(--color-primary), var(--color-secondary));
+    color: white;
+}
+.btn-primary:hover {
+    opacity: 0.9;
+    transform: translateY(-1px);
+}
+
+.btn-secondary {
+    background-color: var(--bg-surface-elevated);
+    color: var(--text-main);
+    border: 1px solid var(--border-color);
+}
+.btn-secondary:hover {
+    background-color: var(--border-color-hover);
+}
+
+.btn-success {
+    background-color: var(--color-accent);
+    color: white;
+}
+.btn-danger {
+    background-color: var(--color-danger);
+    color: white;
+}
+.btn-warning {
+    background-color: var(--color-warning);
+    color: var(--text-inverse);
+}
+
+/* Tree view styling for Resource Hierarchy (US 33 & 34) */
+.hierarchy-tree {
+    list-style: none;
+    padding-left: 0;
+}
+
+.hierarchy-node {
+    margin: 0.5rem 0;
+    padding: 0.75rem;
+    background: var(--bg-surface);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-sm);
+    cursor: grab;
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    user-select: none;
+    transition: transform var(--transition-fast), background-color var(--transition-fast), box-shadow var(--transition-fast);
+}
+
+.hierarchy-node:hover {
+    background-color: var(--bg-surface-elevated);
+}
+
+.hierarchy-node.dragging {
+    opacity: 0.5;
+    border: 2px dashed var(--color-primary);
+}
+
+.hierarchy-node.keyboard-selected {
+    border: 2px solid var(--color-secondary);
+    box-shadow: 0 0 10px rgba(14, 165, 233, 0.4);
+    background-color: var(--bg-surface-elevated);
+}
+
+.hierarchy-indent-0 { margin-left: 0; }
+.hierarchy-indent-1 { margin-left: 1.5rem; }
+.hierarchy-indent-2 { margin-left: 3rem; }
+.hierarchy-indent-3 { margin-left: 4.5rem; }
+.hierarchy-indent-4 { margin-left: 6rem; }
+
+/* Grid systems & stat cards */
+.dashboard-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 1.5rem;
+    margin-bottom: 2rem;
+}
+
+.stat-card {
+    background: linear-gradient(135deg, var(--bg-surface), rgba(30, 41, 59, 0.5));
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    padding: 1.5rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    box-shadow: var(--shadow-sm);
+}
+
+.stat-title {
+    color: var(--text-muted);
+    font-size: 0.9rem;
+    font-weight: 500;
+}
+
+.stat-number {
+    font-size: 2.2rem;
+    font-weight: 700;
+    color: #fff;
+    line-height: 1;
+}
+
+/* Dynamic Help Panel Overlay (US 14) */
+.help-sidebar-container {
+    position: fixed;
+    top: 0;
+    right: -380px;
+    width: 380px;
+    bottom: 0;
+    background: var(--bg-surface);
+    border-left: 1px solid var(--border-color);
+    box-shadow: var(--shadow-lg);
+    z-index: 500;
+    padding: 2rem;
+    display: flex;
+    flex-direction: column;
+    transition: right var(--transition-normal);
+}
+
+.help-sidebar-container.open {
+    right: 0;
+}
+
+.help-sidebar-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 1px solid var(--border-color);
+    padding-bottom: 1rem;
+    margin-bottom: 1.5rem;
+}
+
+.help-sidebar-body {
+    flex: 1;
+    overflow-y: auto;
+}
+
+.help-topic-item {
+    padding: 1rem 0;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.help-indicator-btn {
+    background: none;
+    border: none;
+    color: var(--color-warning);
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    background-color: rgba(245, 158, 11, 0.15);
+    margin-left: 0.5rem;
+    transition: var(--transition-fast);
+}
+
+.help-indicator-btn:hover {
+    background-color: rgba(245, 158, 11, 0.3);
+}
+
+/* Finding Aid View Styling (US 1) */
+.finding-aid-document {
+    background: #fff;
+    color: #1e293b;
+    border-radius: var(--radius-md);
+    padding: 3rem;
+    box-shadow: var(--shadow-lg);
+    max-width: 900px;
+    margin: 0 auto;
+}
+
+.finding-aid-document h1, 
+.finding-aid-document h2, 
+.finding-aid-document h3, 
+.finding-aid-document h4 {
+    color: #0f172a;
+    font-weight: 700;
+}
+
+.finding-aid-document .section-title {
+    border-bottom: 2px solid #cbd5e1;
+    padding-bottom: 0.5rem;
+    margin: 2rem 0 1rem;
+    color: #1e3a8a;
+}
+
+.finding-aid-meta-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-bottom: 1.5rem;
+}
+
+.finding-aid-meta-table td {
+    padding: 0.75rem;
+    border-bottom: 1px solid #e2e8f0;
+}
+
+.finding-aid-meta-table td.label-td {
+    font-weight: 600;
+    color: #475569;
+    width: 250px;
+}
+
+/* Print configuration for Finding Aid (US 1) */
+@media print {
+    body {
+        background-color: white !important;
+        color: black !important;
+    }
+    .app-sidebar, .top-navbar, .btn, .help-sidebar-container {
+        display: none !important;
+    }
+    .app-main {
+        margin-left: 0 !important;
+        padding: 0 !important;
+    }
+    .finding-aid-document {
+        padding: 0 !important;
+        box-shadow: none !important;
+        max-width: 100% !important;
+    }
+}

@@ -1,0 +1,246 @@
+@model Resource
+@{
+    ViewData["Title"] = $"Editar Recurso: {Model.Title}";
+    var collMgmt = ViewBag.CollectionManagement as CollectionManagement;
+    var rights = ViewBag.RightsStatements as List<RightsStatement>;
+}
+
+<div style="max-width: 900px; margin: 0 auto;">
+    <div style="margin-bottom: 2rem; display: flex; justify-content: space-between; align-items: center;">
+        <a asp-action="Details" asp-route-id="@Model.Id" class="btn btn-secondary">
+            <i data-lucide="arrow-left"></i> Cancelar y Volver
+        </a>
+        <span style="color: var(--text-warning); font-size: 0.85rem; font-weight:600;">
+            <i data-lucide="lock" style="width: 14px; height: 14px; display:inline-block; vertical-align:middle; margin-right:4px;"></i> 
+            Protección de Sobrescritura Activa
+        </span>
+    </div>
+
+    <form asp-action="Edit" method="post" id="editResourceForm">
+        @Html.AntiForgeryToken()
+        <input type="hidden" asp-for="Id" />
+        
+        <!-- Target optimistic lock field -->
+        <input type="hidden" asp-for="RowVersion" />
+
+        <div style="display: flex; flex-direction: column; gap: 1.5rem;">
+            
+            <!-- Section 1: Core Details -->
+            <div class="glass-card">
+                <h3 style="border-bottom: 1px solid var(--border-color); padding-bottom: 0.5rem; margin-bottom: 1.5rem; color: #fff;">
+                    1. Datos de Identificación y Fechas
+                </h3>
+
+                <div asp-validation-summary="ModelOnly" class="form-group" style="color: var(--color-danger); font-size: 0.85rem;"></div>
+
+                <div class="form-group">
+                    <label class="form-label">Título del Recurso</label>
+                    <input type="text" asp-for="Title" class="form-control" required />
+                </div>
+
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem;">
+                    <div class="form-group">
+                        <label class="form-label">Identificador Único</label>
+                        <input type="text" asp-for="Identifier" class="form-control" required />
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Repositorio de Custodia</label>
+                        <select asp-for="RepositoryId" required>
+                            @foreach (var repo in ViewBag.Repositories)
+                            {
+                                <option value="@repo.Id">@repo.Name (@repo.Code)</option>
+                            }
+                        </select>
+                    </div>
+                </div>
+
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem;">
+                    <div class="form-group">
+                        <!-- US 15 display dates & extents prominently in edit view -->
+                        <label class="form-label">Fechas Extremas (Dates)</label>
+                        <input type="text" asp-for="Dates" class="form-control" required />
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Extensión Física (Extents)</label>
+                        <input type="text" asp-for="Extents" class="form-control" required />
+                    </div>
+                </div>
+
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem;">
+                    <div class="form-group">
+                        <label class="form-label">Nivel de Descripción</label>
+                        <select asp-for="LevelOfDescription" id="levelSelect" onchange="toggleLevelOther()" required>
+                            <option value="Collection">Colección (Collection)</option>
+                            <option value="Series">Serie (Series)</option>
+                            <option value="Subseries">Subserie (Subseries)</option>
+                            <option value="File">Expediente (File)</option>
+                            <option value="Item">Documento Único (Item)</option>
+                            <option value="Other">Otro (Especificar)</option>
+                        </select>
+                    </div>
+                    <div class="form-group" id="levelOtherGroup" style="@(Model.LevelOfDescription == "Other" ? "display:block;" : "display:none;")">
+                        <label class="form-label">Especificar Otro Nivel</label>
+                        <input type="text" asp-for="LevelOfDescriptionOther" id="levelOtherInput" class="form-control" />
+                    </div>
+                </div>
+
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem;">
+                    <div class="form-group">
+                        <label class="form-label">Idioma de Descripción</label>
+                        <input type="text" asp-for="LanguageOfDescription" class="form-control" />
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Autor de la Descripción</label>
+                        <input type="text" asp-for="FindingAidAuthor" class="form-control" />
+                    </div>
+                </div>
+
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem;">
+                    <div class="form-group" style="grid-column: span 2;">
+                        <label class="form-label">Patrocinador del Finding Aid (Sponsor)</label>
+                        <input type="text" asp-for="FindingAidSponsor" class="form-control" />
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">Notas Administrativas / Guías de Uso</label>
+                    <textarea asp-for="FindingAidNote" class="form-control" rows="3"></textarea>
+                </div>
+            </div>
+
+            <!-- Section 2: Collection Management Subrecord (US 32) -->
+            <div class="glass-card" style="border-top: 4px solid var(--color-accent);">
+                <h3 style="border-bottom: 1px solid var(--border-color); padding-bottom: 0.5rem; margin-bottom: 1.5rem; color: #fff;">
+                    2. Control y Gestión de la Colección (Collection Management Subrecord)
+                </h3>
+
+                <input type="hidden" name="collMgmt.ResourceId" value="@Model.Id" />
+                
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem;">
+                    <div class="form-group">
+                        <label class="form-label">Estado de Procesamiento (Processing Status)</label>
+                        <select name="collMgmt.ProcessingStatus">
+                            <option value="New" selected="@(collMgmt?.ProcessingStatus == "New")">Nuevo (New)</option>
+                            <option value="In Progress" selected="@(collMgmt?.ProcessingStatus == "In Progress")">En Progreso (In Progress)</option>
+                            <option value="Completed" selected="@(collMgmt?.ProcessingStatus == "Completed")">Completado (Completed)</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Prioridad (Processing Priority)</label>
+                        <select name="collMgmt.ProcessingPriority">
+                            <option value="High" selected="@(collMgmt?.ProcessingPriority == "High")">Alta (High)</option>
+                            <option value="Medium" selected="@(collMgmt?.ProcessingPriority == "Medium")">Media (Medium)</option>
+                            <option value="Low" selected="@(collMgmt?.ProcessingPriority == "Low")">Baja (Low)</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">Notas y Plan de Procesamiento</label>
+                    <textarea name="collMgmt.ProcessingNotes" class="form-control" rows="3" placeholder="Comentarios sobre el plan de ordenación, inventario, etc...">@collMgmt?.ProcessingNotes</textarea>
+                </div>
+            </div>
+
+            <!-- Section 3: Rights Management Statements (US 41) -->
+            <div class="glass-card" style="border-top: 4px solid var(--color-warning);">
+                <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border-color); padding-bottom: 0.5rem; margin-bottom: 1.5rem;">
+                    <h3 style="margin: 0; color: #fff;">
+                        3. Declaraciones de Derechos (Rights Management Statements)
+                    </h3>
+                    <button type="button" class="btn btn-secondary" style="padding: 0.4rem 0.8rem; font-size: 0.8rem;" onclick="addRightsRow()">
+                        <i data-lucide="plus"></i> Agregar Ficha
+                    </button>
+                </div>
+
+                <div id="rights-container" style="display: flex; flex-direction: column; gap: 1rem;">
+                    @if (rights != null && rights.Any())
+                    {
+                        for (int i = 0; i < rights.Count; i++)
+                        {
+                            <div class="rights-row" style="background: var(--bg-surface-elevated); padding: 1.25rem; border-radius: var(--radius-sm); border-left: 3px solid var(--color-warning); display: flex; flex-direction: column; gap: 0.75rem; position: relative;">
+                                <button type="button" class="btn btn-danger" style="position: absolute; right: 10px; top: 10px; padding: 4px 8px; font-size: 0.75rem;" onclick="this.parentElement.remove()">Eliminar</button>
+                                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                                    <div>
+                                        <label class="form-label" style="font-size:0.8rem;">Tipo de Derechos</label>
+                                        <input type="text" name="rights[@i].RightsType" class="form-control" style="padding: 0.5rem;" value="@rights[i].RightsType" placeholder="Ej. Copyright" />
+                                    </div>
+                                    <div>
+                                        <label class="form-label" style="font-size:0.8rem;">Estado</label>
+                                        <input type="text" name="rights[@i].Status" class="form-control" style="padding: 0.5rem;" value="@rights[i].Status" placeholder="Ej. Active" />
+                                    </div>
+                                </div>
+                                <div>
+                                    <label class="form-label" style="font-size:0.8rem;">Notas / Restricciones Específicas</label>
+                                    <textarea name="rights[@i].Description" class="form-control" style="padding: 0.5rem;" rows="2">@rights[i].Description</textarea>
+                                </div>
+                            </div>
+                        }
+                    }
+                </div>
+            </div>
+
+            <!-- Submit block -->
+            <button type="submit" class="btn btn-primary" style="padding: 1rem; font-size: 1.1rem; border-radius: var(--radius-sm);">
+                <i data-lucide="check"></i> Guardar Todos los Cambios
+            </button>
+
+        </div>
+    </form>
+</div>
+
+@section Scripts {
+    <script>
+        function toggleLevelOther() {
+            const select = document.getElementById('levelSelect');
+            const group = document.getElementById('levelOtherGroup');
+            const input = document.getElementById('levelOtherInput');
+
+            if (select.value === 'Other') {
+                group.style.display = 'block';
+                input.required = true;
+                input.focus();
+            } else {
+                group.style.display = 'none';
+                input.required = false;
+                input.value = '';
+            }
+        }
+
+        let rightsIndex = @(rights?.Count ?? 0);
+        function addRightsRow() {
+            const container = document.getElementById('rights-container');
+            const row = document.createElement('div');
+            row.className = 'rights-row';
+            row.style.background = 'var(--bg-surface-elevated)';
+            row.style.padding = '1.25rem';
+            row.style.borderRadius = 'var(--radius-sm)';
+            row.style.borderLeft = '3px solid var(--color-warning)';
+            row.style.display = 'flex';
+            row.style.flexDirection = 'column';
+            row.style.gap = '0.75rem';
+            row.style.position = 'relative';
+
+            row.innerHTML = `
+                <button type="button" class="btn btn-danger" style="position: absolute; right: 10px; top: 10px; padding: 4px 8px; font-size: 0.75rem;" onclick="this.parentElement.remove()">Eliminar</button>
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                    <div>
+                        <label class="form-label" style="font-size:0.8rem;">Tipo de Derechos</label>
+                        <input type="text" name="rights[${rightsIndex}].RightsType" class="form-control" style="padding: 0.5rem;" placeholder="Ej. Copyright" required />
+                    </div>
+                    <div>
+                        <label class="form-label" style="font-size:0.8rem;">Estado</label>
+                        <input type="text" name="rights[${rightsIndex}].Status" class="form-control" style="padding: 0.5rem;" value="Active" required />
+                    </div>
+                </div>
+                <div>
+                    <label class="form-label" style="font-size:0.8rem;">Notas / Restricciones Específicas</label>
+                    <textarea name="rights[${rightsIndex}].Description" class="form-control" style="padding: 0.5rem;" rows="2" placeholder="Especificar restricciones del donante o leyes vigentes..."></textarea>
+                </div>
+            `;
+
+            container.appendChild(row);
+            rightsIndex++;
+            lucide.createIcons();
+        }
+    </script>
+}

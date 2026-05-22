@@ -1,0 +1,262 @@
+@model Resource
+@{
+    ViewData["Title"] = $"Recurso: {Model.Title}";
+    var collMgmt = ViewBag.CollectionManagement as CollectionManagement;
+    var rights = ViewBag.RightsStatements as List<RightsStatement>;
+    var subjects = ViewBag.Subjects as List<Subject>;
+    var agents = ViewBag.Agents;
+    var components = ViewBag.Components as List<ArchivalObject>;
+}
+
+<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem;">
+    <a asp-action="Index" class="btn btn-secondary">
+        <i data-lucide="arrow-left"></i> Volver a la Lista
+    </a>
+    <div style="display: flex; gap: 0.5rem;">
+        <a asp-action="ExportEad" asp-route-id="@Model.Id" class="btn btn-secondary" style="border-color: var(--color-accent); color: var(--color-accent);">
+            <i data-lucide="download"></i> Exportar EAD XML
+        </a>
+        @if (!User.IsInRole("ReadOnly") && !User.IsInRole("BasicDataEntry"))
+        {
+            <a asp-action="Edit" asp-route-id="@Model.Id" class="btn btn-warning">
+                <i data-lucide="edit"></i> Editar Datos
+            </a>
+            <a asp-action="EditHierarchy" asp-route-id="@Model.Id" class="btn btn-primary">
+                <i data-lucide="git-branch"></i> Ajustar Jerarquía
+            </a>
+        }
+    </div>
+</div>
+
+<div style="display: grid; grid-template-columns: 2fr 1fr; gap: 1.5rem;">
+    
+    <div style="display: flex; flex-direction: column; gap: 1.5rem;">
+        
+        <!-- Core Details Card -->
+        <div class="glass-card">
+            <h3 style="border-bottom: 1px solid var(--border-color); padding-bottom: 0.5rem; margin-bottom: 1rem; color: #fff;">
+                Descripción Archival Central
+            </h3>
+            
+            <table class="form-group" style="width: 100%; border-collapse: collapse; text-align: left; font-size: 0.95rem;">
+                <!-- US 15: Dates and Extents displayed BEFORE the list of Subjects and Agents -->
+                <tr style="border-bottom: 1px solid var(--border-color);">
+                    <td style="padding: 0.75rem; color: var(--text-muted); font-weight: 600; width: 220px;">Fechas Extremas (Dates)</td>
+                    <td style="padding: 0.75rem; font-weight: 600; color: var(--color-secondary);">@Model.Dates</td>
+                </tr>
+                <tr style="border-bottom: 1px solid var(--border-color);">
+                    <td style="padding: 0.75rem; color: var(--text-muted); font-weight: 600;">Extensión Física (Extents)</td>
+                    <td style="padding: 0.75rem; font-weight: 600; color: var(--color-secondary);">@Model.Extents</td>
+                </tr>
+                
+                <tr style="border-bottom: 1px solid var(--border-color);">
+                    <td style="padding: 0.75rem; color: var(--text-muted); font-weight: 600;">Identificador de Fondo</td>
+                    <td style="padding: 0.75rem; font-family: monospace;">@Model.Identifier</td>
+                </tr>
+                <tr style="border-bottom: 1px solid var(--border-color);">
+                    <td style="padding: 0.75rem; color: var(--text-muted); font-weight: 600;">Nivel de Descripción</td>
+                    <td style="padding: 0.75rem;">
+                        <span style="background: rgba(99, 102, 241, 0.15); color: var(--color-primary); padding: 2px 6px; border-radius: 4px; font-weight: 600;">
+                            @Model.LevelOfDescription
+                        </span>
+                        @if (Model.LevelOfDescription == "Other" && !string.IsNullOrEmpty(Model.LevelOfDescriptionOther))
+                        {
+                            <span style="color: var(--text-muted);">(@Model.LevelOfDescriptionOther)</span>
+                        }
+                    </td>
+                </tr>
+                <tr style="border-bottom: 1px solid var(--border-color);">
+                    <td style="padding: 0.75rem; color: var(--text-muted); font-weight: 600;">Idioma de la Descripción</td>
+                    <td style="padding: 0.75rem;">@Model.LanguageOfDescription</td>
+                </tr>
+                
+                <!-- Finding Aid Administrative Metadata (US 26) -->
+                <tr style="border-bottom: 1px solid var(--border-color);">
+                    <td style="padding: 0.75rem; color: var(--text-muted); font-weight: 600;">Autor del Finding Aid</td>
+                    <td style="padding: 0.75rem;">@Model.FindingAidAuthor</td>
+                </tr>
+                <tr style="border-bottom: 1px solid var(--border-color);">
+                    <td style="padding: 0.75rem; color: var(--text-muted); font-weight: 600;">Patrocinador / Financiador</td>
+                    <td style="padding: 0.75rem;">@Model.FindingAidSponsor</td>
+                </tr>
+                @if (!string.IsNullOrEmpty(Model.FindingAidNote))
+                {
+                    <tr style="border-bottom: 1px solid var(--border-color);">
+                        <td style="padding: 0.75rem; color: var(--text-muted); font-weight: 600;">Notas Administrativas</td>
+                        <td style="padding: 0.75rem; font-size: 0.85rem; color: var(--text-muted);">@Model.FindingAidNote</td>
+                    </tr>
+                }
+                
+                <!-- Migration Integrity Check Info (US 7) -->
+                @if (!string.IsNullOrEmpty(Model.SourceRecordId))
+                {
+                    <tr>
+                        <td style="padding: 0.75rem; color: var(--text-muted); font-weight: 600;">Origen de Migración</td>
+                        <td style="padding: 0.75rem; font-size: 0.85rem; color: var(--color-warning);">
+                            ID original: @Model.SourceRecordId | Origen: @Model.SourceSystem
+                        </td>
+                    </tr>
+                }
+            </table>
+        </div>
+
+        <!-- Subjects and Agents -->
+        <div class="glass-card">
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem;">
+                
+                <!-- Linked Subjects (US 53) -->
+                <div>
+                    <h4 style="border-bottom: 1px solid var(--border-color); padding-bottom: 0.4rem; margin-bottom: 0.8rem; color:#fff;">
+                        Materias Enlazadas (Subjects)
+                    </h4>
+                    @if (subjects != null && subjects.Any())
+                    {
+                        <ul style="list-style: none; display: flex; flex-direction: column; gap: 0.5rem;">
+                            @foreach (var sub in subjects)
+                            {
+                                <li style="background: var(--bg-surface-elevated); padding: 0.5rem 0.75rem; border-radius: var(--radius-sm); font-size: 0.85rem; display: flex; justify-content: space-between; align-items: center;">
+                                    <span>@sub.Heading</span>
+                                    <small style="color: var(--text-muted); font-family: monospace;">@sub.StandardIdentifier</small>
+                                </li>
+                            }
+                        </ul>
+                    }
+                    else
+                    {
+                        <p style="color: var(--text-muted); font-size: 0.8rem;">Ninguna materia vinculada.</p>
+                    }
+                </div>
+
+                <!-- Linked Agents (US 35) -->
+                <div>
+                    <h4 style="border-bottom: 1px solid var(--border-color); padding-bottom: 0.4rem; margin-bottom: 0.8rem; color:#fff;">
+                        Agentes Relacionados
+                    </h4>
+                    @if (agents != null)
+                    {
+                        <ul style="list-style: none; display: flex; flex-direction: column; gap: 0.5rem;">
+                            @foreach (var ag in agents)
+                            {
+                                <li style="background: var(--bg-surface-elevated); padding: 0.5rem 0.75rem; border-radius: var(--radius-sm); font-size: 0.85rem;">
+                                    <strong>@ag.Agent.Name</strong>
+                                    <div style="display: flex; justify-content: space-between; font-size: 0.75rem; color: var(--text-muted); margin-top: 2px;">
+                                        <span>Rol: <span style="color:var(--color-secondary);">@ag.Role</span></span>
+                                        <span>@ag.Agent.Type</span>
+                                    </div>
+                                </li>
+                            }
+                        </ul>
+                    }
+                    else
+                    {
+                        <p style="color: var(--text-muted); font-size: 0.8rem;">Ningún agente vinculado.</p>
+                    }
+                </div>
+
+            </div>
+        </div>
+
+        <!-- Hierarchical Components Tree View -->
+        <div class="glass-card">
+            <h3 style="border-bottom: 1px solid var(--border-color); padding-bottom: 0.5rem; margin-bottom: 1rem; color: #fff;">
+                Estructura de Componentes Jerárquicos
+            </h3>
+            
+            @if (components != null && components.Any())
+            {
+                <div style="display: flex; flex-direction: column; gap: 0.5rem; max-height: 450px; overflow-y: auto; padding-right: 0.5rem;">
+                    @foreach (var comp in components)
+                    {
+                        <div class="hierarchy-node" style="cursor: default; padding: 0.5rem 0.75rem;" data-id="@comp.Id">
+                            <i data-lucide="file-text" style="width: 16px; height: 16px; color: var(--color-primary);"></i>
+                            <div style="flex: 1;">
+                                <strong style="color: #fff; font-size: 0.85rem;">@comp.Title</strong>
+                                <div style="display: flex; gap: 1rem; font-size: 0.75rem; color: var(--text-muted); margin-top: 2px;">
+                                    <span>ID: <span style="font-family: monospace;">@comp.ComponentIdentifier</span></span>
+                                    <span>Nivel: <span style="color: var(--color-secondary);">@comp.LevelOfDescription</span></span>
+                                    <span>Fechas: @comp.Dates</span>
+                                </div>
+                            </div>
+                        </div>
+                    }
+                </div>
+            }
+            else
+            {
+                <p style="color: var(--text-muted); font-size: 0.9rem; text-align: center; padding: 1rem 0;">
+                    Este recurso no posee componentes o subdivisiones descritas aún.
+                </p>
+            }
+        </div>
+
+    </div>
+
+    <!-- Sidebar Subrecords (Collection Management, Rights Statements) -->
+    <div style="display: flex; flex-direction: column; gap: 1.5rem;">
+        
+        <!-- Collection Management Subrecord (US 32) -->
+        <div class="glass-card" style="border-top: 4px solid var(--color-accent);">
+            <h4 style="margin-bottom: 0.75rem; color: #fff; display: flex; align-items: center; gap: 0.4rem;">
+                <i data-lucide="sliders" style="color: var(--color-accent); width: 18px; height: 18px;"></i>
+                Administración de la Colección
+            </h4>
+            @if (collMgmt != null)
+            {
+                <div style="display: flex; flex-direction: column; gap: 0.75rem; font-size: 0.85rem;">
+                    <div>
+                        <span style="color: var(--text-muted);">Estado de Procesamiento:</span>
+                        <div style="font-weight: 600; color: #fff; margin-top: 2px;">@collMgmt.ProcessingStatus</div>
+                    </div>
+                    <div>
+                        <span style="color: var(--text-muted);">Prioridad de Catalogación:</span>
+                        <div style="font-weight: 600; color: #fff; margin-top: 2px;">@collMgmt.ProcessingPriority</div>
+                    </div>
+                    @if (!string.IsNullOrEmpty(collMgmt.ProcessingNotes))
+                    {
+                        <div>
+                            <span style="color: var(--text-muted);">Notas de Trabajo:</span>
+                            <p style="color: var(--text-muted); font-size: 0.8rem; margin-top: 2px; background: var(--bg-surface-elevated); padding: 6px; border-radius: 4px;">
+                                @collMgmt.ProcessingNotes
+                            </p>
+                        </div>
+                    }
+                </div>
+            }
+            else
+            {
+                <p style="color: var(--text-muted); font-size: 0.8rem;">No se ha configurado un subregistro de control para esta colección.</p>
+            }
+        </div>
+
+        <!-- Rights Management Statements (US 41) -->
+        <div class="glass-card" style="border-top: 4px solid var(--color-warning);">
+            <h4 style="margin-bottom: 0.75rem; color: #fff; display: flex; align-items: center; gap: 0.4rem;">
+                <i data-lucide="shield-check" style="color: var(--color-warning); width: 18px; height: 18px;"></i>
+                Declaraciones de Derechos
+            </h4>
+            @if (rights != null && rights.Any())
+            {
+                <div style="display: flex; flex-direction: column; gap: 0.75rem;">
+                    @foreach (var rt in rights)
+                    {
+                        <div style="background: var(--bg-surface-elevated); padding: 0.75rem; border-radius: var(--radius-sm); font-size: 0.8rem;">
+                            <div style="display: flex; justify-content: space-between; font-weight: 600; color: #fff;">
+                                <span>@rt.RightsType</span>
+                                <span style="color: var(--color-warning);">@rt.Status</span>
+                            </div>
+                            <p style="color: var(--text-muted); font-size: 0.75rem; margin-top: 4px;">
+                                @rt.Description
+                            </p>
+                        </div>
+                    }
+                </div>
+            }
+            else
+            {
+                <p style="color: var(--text-muted); font-size: 0.8rem;">Ninguna declaración de derechos (Copyright/Licencias) adjunta.</p>
+            }
+        </div>
+
+    </div>
+
+</div>
