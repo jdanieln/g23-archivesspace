@@ -3,8 +3,10 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using ArchivesSpaceWeb.Domains.Resources.Entities;
 using ArchivesSpaceWeb.Domains.Resources.Interfaces;
+using ArchivesSpaceWeb.Domains.Resources.Queries;
+using ArchivesSpaceWeb.Domains.Resources.Commands;
 using ArchivesSpaceWeb.Domains.Shared.Interfaces;
-using ArchivesSpaceWeb.Domains.Admin.Entities;
+using ArchivesSpaceWeb.Domains.Admin.Interfaces;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -18,85 +20,76 @@ namespace ArchivesSpaceWeb.Domains.Resources.Controllers
     [Authorize]
     public class ResourceController : Controller
     {
+        private readonly IQueryHandler<GetResourcesListQuery, List<Resource>> _listQueryHandler;
+        private readonly IQueryHandler<GetResourceDetailsQuery, ResourceDetailsResult?> _detailsQueryHandler;
+        private readonly IQueryHandler<GetResourceHierarchyQuery, List<ArchivalObject>> _hierarchyQueryHandler;
+        private readonly IQueryHandler<ExportEadQuery, XDocument?> _exportQueryHandler;
+        private readonly ICommandHandler<CreateResourceCommand, Resource> _createCommandHandler;
+        private readonly ICommandHandler<EditResourceCommand, Resource> _editCommandHandler;
+        private readonly ICommandHandler<UpdateResourceHierarchyCommand, bool> _updateHierarchyCommandHandler;
         private readonly IResourceRepository _resourceRepository;
-        private readonly IRepository<Event> _eventRepository;
 
         public ResourceController(
-            IResourceRepository resourceRepository,
-            IRepository<Event> eventRepository)
+            IQueryHandler<GetResourcesListQuery, List<Resource>> listQueryHandler,
+            IQueryHandler<GetResourceDetailsQuery, ResourceDetailsResult?> detailsQueryHandler,
+            IQueryHandler<GetResourceHierarchyQuery, List<ArchivalObject>> hierarchyQueryHandler,
+            IQueryHandler<ExportEadQuery, XDocument?> exportQueryHandler,
+            ICommandHandler<CreateResourceCommand, Resource> createCommandHandler,
+            ICommandHandler<EditResourceCommand, Resource> editCommandHandler,
+            ICommandHandler<UpdateResourceHierarchyCommand, bool> updateHierarchyCommandHandler,
+            IResourceRepository resourceRepository)
         {
+            _listQueryHandler = listQueryHandler;
+            _detailsQueryHandler = detailsQueryHandler;
+            _hierarchyQueryHandler = hierarchyQueryHandler;
+            _exportQueryHandler = exportQueryHandler;
+            _createCommandHandler = createCommandHandler;
+            _editCommandHandler = editCommandHandler;
+            _updateHierarchyCommandHandler = updateHierarchyCommandHandler;
             _resourceRepository = resourceRepository;
-            _eventRepository = eventRepository;
         }
 
         public async Task<IActionResult> Index()
         {
-            var repClaim = User.FindFirst("RepositoryId")?.Value;
-            var isSysAdmin = User.IsInRole("SystemAdmin");
-
-            List<Resource> resources;
-
-            if (!isSysAdmin && int.TryParse(repClaim, out int repId) && repId > 0)
-            {
-                resources = await _resourceRepository.GetByRepositoryAsync(repId);
-            }
-            else
-            {
-                resources = await _resourceRepository.GetAllWithRepositoryAsync();
-            }
-
+            var query = new GetResourcesListQuery(User);
+            var resources = await _listQueryHandler.HandleAsync(query);
             return View(resources);
         }
 
         public async Task<IActionResult> Details(int id)
         {
-            var resource = await _resourceRepository.GetResourceWithDetailsAsync(id);
+            var query = new GetResourceDetailsQuery(id);
+            var result = await _detailsQueryHandler.HandleAsync(query);
 
-            if (resource == null) return NotFound();
+            if (result == null) return NotFound();
 
             // Load subrecords & related tables (US 15 dates & extents display priority)
-            var components = await _resourceRepository.GetComponentsTreeAsync(id);
-            ViewBag.Components = components.Where(ao => ao.ParentId == null).ToList();
+            ViewBag.Components = result.Components.Where(ao => ao.ParentId == null).ToList();
+            ViewBag.Subjects = result.Subjects;
+            ViewBag.Agents = result.Agents;
+            ViewBag.CollectionManagement = result.CollectionManagement;
+            ViewBag.RightsStatements = result.RightsStatements;
 
-            ViewBag.Subjects = await _resourceRepository.GetResourceSubjectsAsync(id);
-            ViewBag.Agents = await _resourceRepository.GetResourceAgentsAsync(id);
-
-            ViewBag.CollectionManagement = await _resourceRepository.GetCollectionManagementAsync(id);
-            ViewBag.RightsStatements = await _resourceRepository.GetRightsStatementsAsync(id);
-
-            return View(resource);
+            return View(result.Resource);
         }
 
         [HttpGet]
+        [Authorize(Roles = "SystemAdmin,RepositoryManager,BasicDataEntry")]
         public async Task<IActionResult> Create()
         {
-            if (User.IsInRole("ReadOnly")) return RedirectToAction("AccessDenied", "Account");
             ViewBag.Repositories = await _resourceRepository.GetAllRepositoriesAsync();
             return View();
         }
 
         [HttpPost]
         [ValidateAntiForgeryToken]
+        [Authorize(Roles = "SystemAdmin,RepositoryManager,BasicDataEntry")]
         public async Task<IActionResult> Create(Resource resource)
         {
-            if (User.IsInRole("ReadOnly")) return RedirectToAction("AccessDenied", "Account");
-
             if (ModelState.IsValid)
             {
-                await _resourceRepository.AddAsync(resource);
-                await _resourceRepository.SaveChangesAsync();
-
-                // Log Event (US 37)
-                var creationEvent = new Event
-                {
-                    EventType = "Creation",
-                    EventDate = DateTime.Now,
-                    Description = $"Recurso '{resource.Title}' ({resource.Identifier}) creado por {User.Identity?.Name}.",
-                    ResourceId = resource.Id
-                };
-                await _eventRepository.AddAsync(creationEvent);
-                await _eventRepository.SaveChangesAsync();
-
+                var command = new CreateResourceCommand(resource, User.Identity?.Name);
+                await _createCommandHandler.HandleAsync(command);
                 return RedirectToAction(nameof(Index));
             }
 
@@ -105,62 +98,33 @@ namespace ArchivesSpaceWeb.Domains.Resources.Controllers
         }
 
         [HttpGet]
+        [Authorize(Roles = "SystemAdmin,RepositoryManager")]
         public async Task<IActionResult> Edit(int id)
         {
-            if (User.IsInRole("ReadOnly") || User.IsInRole("BasicDataEntry")) 
-                return RedirectToAction("AccessDenied", "Account");
-
-            var resource = await _resourceRepository.GetByIdAsync(id);
-            if (resource == null) return NotFound();
+            var query = new GetResourceDetailsQuery(id);
+            var result = await _detailsQueryHandler.HandleAsync(query);
+            if (result == null) return NotFound();
 
             ViewBag.Repositories = await _resourceRepository.GetAllRepositoriesAsync();
-            
-            // Subrecords load (US 32 and US 41)
-            var cm = await _resourceRepository.GetCollectionManagementAsync(id);
-            ViewBag.CollectionManagement = cm ?? new CollectionManagement { ResourceId = id };
+            ViewBag.CollectionManagement = result.CollectionManagement ?? new CollectionManagement { ResourceId = id };
+            ViewBag.RightsStatements = result.RightsStatements;
 
-            ViewBag.RightsStatements = await _resourceRepository.GetRightsStatementsAsync(id);
-
-            return View(resource);
+            return View(result.Resource);
         }
 
         [HttpPost]
         [ValidateAntiForgeryToken]
+        [Authorize(Roles = "SystemAdmin,RepositoryManager")]
         public async Task<IActionResult> Edit(int id, Resource resource, CollectionManagement? collMgmt, List<RightsStatement>? rights)
         {
-            if (User.IsInRole("ReadOnly") || User.IsInRole("BasicDataEntry")) 
-                return RedirectToAction("AccessDenied", "Account");
-
             if (id != resource.Id) return NotFound();
 
             if (ModelState.IsValid)
             {
                 try
                 {
-                    // US 40: Optimistic locking validation
-                    await _resourceRepository.UpdateAsync(resource);
-                    await _resourceRepository.SaveChangesAsync();
-
-                    // US 32: Collection management save
-                    if (collMgmt != null)
-                    {
-                        collMgmt.ResourceId = id;
-                        await _resourceRepository.AddOrUpdateCollectionManagementAsync(collMgmt);
-                    }
-
-                    // US 41: Rights Management save
-                    await _resourceRepository.UpdateRightsStatementsAsync(id, rights ?? new List<RightsStatement>());
-
-                    // Log event (US 37)
-                    var modificationEvent = new Event
-                    {
-                        EventType = "Modification",
-                        EventDate = DateTime.Now,
-                        Description = $"Recurso '{resource.Title}' modificado por {User.Identity?.Name}.",
-                        ResourceId = resource.Id
-                    };
-                    await _eventRepository.AddAsync(modificationEvent);
-                    await _resourceRepository.SaveChangesAsync();
+                    var command = new EditResourceCommand(id, resource, collMgmt, rights, User.Identity?.Name);
+                    await _editCommandHandler.HandleAsync(command);
                 }
                 catch (DbUpdateConcurrencyException)
                 {
@@ -181,33 +145,27 @@ namespace ArchivesSpaceWeb.Domains.Resources.Controllers
 
         // US 33 & 34: Keyboard & Drag and drop hierarchy editor
         [HttpGet]
+        [Authorize(Roles = "SystemAdmin,RepositoryManager")]
         public async Task<IActionResult> EditHierarchy(int id)
         {
-            var resource = await _resourceRepository.GetByIdAsync(id);
-            if (resource == null) return NotFound();
+            var query = new GetResourceDetailsQuery(id);
+            var result = await _detailsQueryHandler.HandleAsync(query);
+            if (result == null) return NotFound();
 
-            ViewBag.Components = await _resourceRepository.GetComponentsTreeAsync(id);
-            return View(resource);
+            ViewBag.Components = result.Components;
+            return View(result.Resource);
         }
 
         [HttpPost]
+        [Authorize(Roles = "SystemAdmin,RepositoryManager")]
         public async Task<IActionResult> UpdateHierarchy([FromBody] List<HierarchyUpdateModel> updates)
         {
             if (updates == null || !updates.Any()) return BadRequest("No updates provided.");
 
             try
             {
-                foreach (var update in updates)
-                {
-                    var component = await _resourceRepository.GetArchivalObjectByIdAsync(update.Id);
-                    if (component != null)
-                    {
-                        component.ParentId = update.ParentId == 0 ? null : update.ParentId;
-                        component.Position = update.Position;
-                        await _resourceRepository.UpdateArchivalObjectAsync(component);
-                    }
-                }
-                await _resourceRepository.SaveChangesAsync();
+                var command = new UpdateResourceHierarchyCommand(updates);
+                await _updateHierarchyCommandHandler.HandleAsync(command);
                 return Json(new { success = true, message = "Jerarquía guardada con éxito." });
             }
             catch (Exception ex)
@@ -220,46 +178,10 @@ namespace ArchivesSpaceWeb.Domains.Resources.Controllers
         [HttpGet]
         public async Task<IActionResult> ExportEad(int id)
         {
-            var resource = await _resourceRepository.GetResourceWithDetailsAsync(id);
+            var query = new ExportEadQuery(id);
+            var doc = await _exportQueryHandler.HandleAsync(query);
 
-            if (resource == null) return NotFound();
-
-            var components = await _resourceRepository.GetComponentsTreeAsync(id);
-
-            // Create compliance XML
-            var doc = new XDocument(
-                new XElement("ead",
-                    new XAttribute("audience", "external"),
-                    new XElement("eadheader",
-                        new XElement("eadid", resource.Identifier),
-                        new XElement("filedesc",
-                            new XElement("titlestmt",
-                                new XElement("titleproper", resource.Title)
-                            ),
-                            new XElement("publicationstmt",
-                                new XElement("publisher", resource.Repository?.Name ?? "ArchivesSpaceWeb Repository"),
-                                new XElement("p", $"Author: {resource.FindingAidAuthor ?? "Archivist Staff"}")
-                            )
-                        )
-                    ),
-                    new XElement("archdesc", new XAttribute("level", resource.LevelOfDescription.ToLower()),
-                        new XElement("did",
-                            new XElement("unittitle", resource.Title),
-                            new XElement("unitid", resource.Identifier),
-                            new XElement("unitdate", resource.Dates),
-                            new XElement("physdesc",
-                                new XElement("extent", resource.Extents)
-                            ),
-                            new XElement("langmaterial",
-                                new XElement("language", resource.LanguageOfDescription ?? "Spanish")
-                            )
-                        ),
-                        new XElement("dsc",
-                            BuildXmlHierarchy(null, components)
-                        )
-                    )
-                )
-            );
+            if (doc == null) return NotFound();
 
             var stream = new MemoryStream();
             using (var writer = new StreamWriter(stream, Encoding.UTF8))
@@ -268,50 +190,13 @@ namespace ArchivesSpaceWeb.Domains.Resources.Controllers
             }
             stream.Position = 0;
 
-            string fileName = $"EAD-{resource.Identifier.Replace("/", "-")}.xml";
+            // Query details for Identifier filename
+            var detailsQuery = new GetResourceDetailsQuery(id);
+            var details = await _detailsQueryHandler.HandleAsync(detailsQuery);
+            string identifier = details?.Resource.Identifier ?? "EAD";
+
+            string fileName = $"EAD-{identifier.Replace("/", "-")}.xml";
             return File(stream, "application/xml", fileName);
         }
-
-        private List<XElement> BuildXmlHierarchy(int? parentId, List<ArchivalObject> list)
-        {
-            var elements = new List<XElement>();
-            var levelChildren = list.Where(c => c.ParentId == parentId).OrderBy(c => c.Position);
-
-            int counter = 1;
-            foreach (var child in levelChildren)
-            {
-                var tag = parentId == null ? "c01" : "c"; // standard nested EAD component tag
-                var childElem = new XElement(tag,
-                    new XAttribute("level", child.LevelOfDescription.ToLower()),
-                    new XAttribute("id", child.ComponentIdentifier ?? $"comp_{child.Id}"),
-                    new XElement("did",
-                        new XElement("unittitle", child.Title),
-                        new XElement("unitid", child.ComponentIdentifier),
-                        new XElement("unitdate", child.Dates),
-                        new XElement("physdesc",
-                            new XElement("extent", child.Extents)
-                        )
-                    )
-                );
-
-                var grandchildren = BuildXmlHierarchy(child.Id, list);
-                if (grandchildren.Any())
-                {
-                    childElem.Add(grandchildren);
-                }
-
-                elements.Add(childElem);
-                counter++;
-            }
-
-            return elements;
-        }
-    }
-
-    public class HierarchyUpdateModel
-    {
-        public int Id { get; set; }
-        public int? ParentId { get; set; }
-        public int Position { get; set; }
     }
 }

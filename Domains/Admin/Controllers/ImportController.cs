@@ -1,8 +1,12 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
-using ArchivesSpaceWeb.Domains.Admin.Interfaces;
+using ArchivesSpaceWeb.Domains.Admin.Entities;
+using ArchivesSpaceWeb.Domains.Admin.Queries;
+using ArchivesSpaceWeb.Domains.Admin.Commands;
+using ArchivesSpaceWeb.Domains.Shared.Interfaces;
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Threading.Tasks;
 
@@ -11,28 +15,39 @@ namespace ArchivesSpaceWeb.Domains.Admin.Controllers
     [Authorize]
     public class ImportController : Controller
     {
-        private readonly IImportService _importService;
+        private readonly IQueryHandler<GetImportLogsQuery, List<ImportLog>> _logsQueryHandler;
+        private readonly IQueryHandler<GetUsersListQuery, UsersListResult> _usersListQueryHandler;
+        private readonly ICommandHandler<ImportEadXmlCommand, ImportXmlResult> _importEadCommandHandler;
+        private readonly ICommandHandler<ImportMarcXmlCommand, ImportXmlResult> _importMarcCommandHandler;
+        private readonly ICommandHandler<ImportEacCpfXmlCommand, ImportXmlResult> _importEacCpfCommandHandler;
 
-        public ImportController(IImportService importService)
+        public ImportController(
+            IQueryHandler<GetImportLogsQuery, List<ImportLog>> logsQueryHandler,
+            IQueryHandler<GetUsersListQuery, UsersListResult> usersListQueryHandler,
+            ICommandHandler<ImportEadXmlCommand, ImportXmlResult> importEadCommandHandler,
+            ICommandHandler<ImportMarcXmlCommand, ImportXmlResult> importMarcCommandHandler,
+            ICommandHandler<ImportEacCpfXmlCommand, ImportXmlResult> importEacCpfCommandHandler)
         {
-            _importService = importService;
+            _logsQueryHandler = logsQueryHandler;
+            _usersListQueryHandler = usersListQueryHandler;
+            _importEadCommandHandler = importEadCommandHandler;
+            _importMarcCommandHandler = importMarcCommandHandler;
+            _importEacCpfCommandHandler = importEacCpfCommandHandler;
         }
 
         [HttpGet]
         public async Task<IActionResult> Index()
         {
-            var logs = await _importService.GetRecentImportLogsAsync(20);
-            ViewBag.Repositories = await _importService.GetAllRepositoriesAsync();
+            var logs = await _logsQueryHandler.HandleAsync(new GetImportLogsQuery(20));
+            var reposResult = await _usersListQueryHandler.HandleAsync(new GetUsersListQuery());
+            ViewBag.Repositories = reposResult.Repositories;
             return View(logs);
         }
 
-        // US 4, 29, 42, 43: EAD XML Importer
         [HttpPost]
+        [Authorize(Roles = "SystemAdmin,RepositoryManager")]
         public async Task<IActionResult> ImportEad(IFormFile xmlFile, int repositoryId)
         {
-            if (User.IsInRole("ReadOnly") || User.IsInRole("BasicDataEntry"))
-                return Json(new { success = false, message = "Acceso Denegado." });
-
             if (xmlFile == null || xmlFile.Length == 0)
                 return Json(new { success = false, message = "Selecciona un archivo XML EAD válido." });
 
@@ -40,7 +55,8 @@ namespace ArchivesSpaceWeb.Domains.Admin.Controllers
             {
                 using (var stream = xmlFile.OpenReadStream())
                 {
-                    var result = await _importService.ImportEadAsync(stream, repositoryId);
+                    var command = new ImportEadXmlCommand(stream, repositoryId);
+                    var result = await _importEadCommandHandler.HandleAsync(command);
                     return Json(new { success = result.Success, message = result.Message, errorDetails = result.Success ? null : result.Message });
                 }
             }
@@ -50,13 +66,10 @@ namespace ArchivesSpaceWeb.Domains.Admin.Controllers
             }
         }
 
-        // US 12 & 20: MARCXML Importer
         [HttpPost]
+        [Authorize(Roles = "SystemAdmin,RepositoryManager")]
         public async Task<IActionResult> ImportMarcXml(IFormFile xmlFile, int repositoryId, bool agentsAndSubjectsOnly)
         {
-            if (User.IsInRole("ReadOnly") || User.IsInRole("BasicDataEntry"))
-                return Json(new { success = false, message = "Acceso Denegado." });
-
             if (xmlFile == null || xmlFile.Length == 0)
                 return Json(new { success = false, message = "Selecciona un archivo MARCXML válido." });
 
@@ -64,7 +77,8 @@ namespace ArchivesSpaceWeb.Domains.Admin.Controllers
             {
                 using (var stream = xmlFile.OpenReadStream())
                 {
-                    var result = await _importService.ImportMarcXmlAsync(stream, repositoryId, agentsAndSubjectsOnly);
+                    var command = new ImportMarcXmlCommand(stream, repositoryId, agentsAndSubjectsOnly);
+                    var result = await _importMarcCommandHandler.HandleAsync(command);
                     return Json(new { success = result.Success, message = result.Message, errorDetails = result.Success ? null : result.Message });
                 }
             }
@@ -74,13 +88,10 @@ namespace ArchivesSpaceWeb.Domains.Admin.Controllers
             }
         }
 
-        // US 16: EAC-CPF XML Agent Importer
         [HttpPost]
+        [Authorize(Roles = "SystemAdmin,RepositoryManager")]
         public async Task<IActionResult> ImportEacCpf(IFormFile xmlFile)
         {
-            if (User.IsInRole("ReadOnly") || User.IsInRole("BasicDataEntry"))
-                return Json(new { success = false, message = "Acceso Denegado." });
-
             if (xmlFile == null || xmlFile.Length == 0)
                 return Json(new { success = false, message = "Selecciona un archivo EAC-CPF válido." });
 
@@ -88,7 +99,8 @@ namespace ArchivesSpaceWeb.Domains.Admin.Controllers
             {
                 using (var stream = xmlFile.OpenReadStream())
                 {
-                    var result = await _importService.ImportEacCpfAsync(stream);
+                    var command = new ImportEacCpfXmlCommand(stream);
+                    var result = await _importEacCpfCommandHandler.HandleAsync(command);
                     return Json(new { success = result.Success, message = result.Message, errorDetails = result.Success ? null : result.Message });
                 }
             }

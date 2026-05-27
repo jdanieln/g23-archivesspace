@@ -6,58 +6,99 @@ Este proyecto ha sido rediseñado bajo una arquitectura de **Domain-Driven Desig
 
 ---
 
-## 🏛️ Arquitectura del Sistema: Diseño Dirigido por el Dominio (DDD)
+## 🏛️ Arquitectura del Sistema: Diseño Dirigido por el Dominio (DDD) y CQRS Global
 
-Originalmente estructurado bajo un patrón MVC horizontal/por capas tradicionales (donde todos los controladores, entidades e interfaces residían en carpetas globales), el sistema fue refactorizado por completo hacia una estructura de **Contextos Acotados (Bounded Contexts)**.
+Originalmente estructurado bajo un patrón MVC horizontal/por capas tradicionales (donde todos los controladores, entidades e interfaces residían en carpetas globales), el sistema fue refactorizado por completo hacia una estructura de **Contextos Acotados (Bounded Contexts)** combinando **Domain-Driven Design (DDD)** con la segregación de responsabilidades mediante el patrón **CQRS** en rebanadas verticales (Vertical Slices).
 
-Cada dominio de negocio es autónomo y autosuficiente. Contiene internamente todos los componentes necesarios para su funcionamiento técnico y de negocio.
+Cada dominio de negocio es autónomo y autosuficiente. Contiene internamente todos los comandos, consultas, entidades, controladores e infraestructura necesarios para su funcionamiento técnico y de negocio.
 
-### 📊 Estructura de Carpetas (Arquitectura de Dominios Verticales)
+### 📊 Estructura de Carpetas (Arquitectura de Dominios Verticales con CQRS)
 
-Toda la lógica de negocio y persistencia está agrupada bajo el directorio `Domains/`, subdividida en contextos claros:
+Toda la lógica de negocio y persistencia está agrupada bajo el directorio `Domains/`, subdividida en contextos claros con segregación de comandos y consultas:
 
 ```text
 g23-archivesspace/
 ├── Domains/
 │   ├── Accessions/              # Contexto de Nuevos Ingresos (Accessions)
-│   │   ├── Controllers/
-│   │   ├── Entities/
-│   │   ├── Interfaces/
-│   │   └── Infrastructure/
+│   │   ├── Commands/            # Comandos de escritura (e.g. CreateAccession, ImportAccessionsCsv)
+│   │   ├── Controllers/         # Controlador delgado (AccessionController)
+│   │   ├── Entities/            # Entidades de dominio
+│   │   ├── Infrastructure/      # Repositorios específicos, lógica persistente
+│   │   ├── Interfaces/          # Abstracciones locales
+│   │   └── Queries/             # Consultas de lectura (e.g. GetAccessionDetails)
 │   │
 │   ├── Resources/               # Contexto de Recursos Archivísticos (Recursos, Jerarquías, EAD)
-│   │   ├── Controllers/
-│   │   ├── Entities/
-│   │   ├── Interfaces/
-│   │   └── Infrastructure/
+│   │   ├── Commands/            # Comandos (e.g. CreateResource, EditResource, UpdateResourceHierarchy)
+│   │   ├── Controllers/         # ResourceController, FindingAidController
+│   │   ├── Entities/            # Resource, Component, DigitalObject, RightsStatement, etc.
+│   │   ├── Infrastructure/      # EadExportService
+│   │   ├── Interfaces/          # IEadExportService
+│   │   └── Queries/             # Consultas (e.g. GetResourcesList, GetResourceDetails, ExportEad)
 │   │
 │   ├── Agents/                  # Contexto de Agentes (Creadores, Personas, Entidades)
-│   │   ├── Controllers/
-│   │   ├── Entities/
-│   │   ├── Interfaces/
-│   │   └── Infrastructure/
+│   │   ├── Commands/            # Comandos (e.g. CreateAgent, EditAgent)
+│   │   ├── Controllers/         # AgentController
+│   │   ├── Entities/            # Agent, AgentRelation, ContactRecord, etc.
+│   │   ├── Infrastructure/      # EacCpfExportService
+│   │   ├── Interfaces/          # IEacCpfExportService
+│   │   └── Queries/             # Consultas (e.g. GetAgentsList, GetAgentDetails, ExportEacCpf)
 │   │
 │   ├── Identity/                # Contexto de Gestión de Identidad y Seguridad (Usuarios, Sesiones)
-│   │   ├── Controllers/
-│   │   ├── Entities/
-│   │   ├── Interfaces/
-│   │   └── Infrastructure/
+│   │   ├── Commands/            # Comandos (e.g. LoginCommand, LogoutCommand)
+│   │   ├── Controllers/         # AccountController
+│   │   ├── Entities/            # User, Repository, SessionLog
+│   │   ├── Interfaces/          # IAuthService
+│   │   └── Infrastructure/      # AuthService
 │   │
 │   ├── Admin/                   # Contexto de Administración, Auditorías y Panel de Control
-│   │   ├── Controllers/
-│   │   ├── Entities/
-│   │   ├── Interfaces/
-│   │   └── Infrastructure/
+│   │   ├── Commands/            # Comandos (e.g. CreateUser, ResetPassword, BackupDatabase, ImportEadXml)
+│   │   ├── Controllers/         # AdminController, ImportController, DashboardController
+│   │   ├── Entities/            # AuditLog, SystemSettings, ImportLog
+│   │   ├── Infrastructure/      # AuditService
+│   │   ├── Interfaces/          # IAuditService
+│   │   └── Queries/             # Consultas (e.g. GetDashboardStats, SearchDashboard, GetDatabaseStats)
 │   │
-│   └── Shared/                  # Componentes Compartidos (DbContext común, Repositorio Genérico)
-│       ├── Infrastructure/
-│       └── Interfaces/
+│   └── Shared/                  # Componentes Compartidos y Base de la Arquitectura
+│       ├── Infrastructure/      # ApplicationDbContext, EFGenericRepository
+│       └── Interfaces/          # ICommand, ICommandHandler, IQuery, IQueryHandler, IGenericRepository
 │
 ├── ViewModels/                  # Modelos de Vista específicos para la capa de presentación
 ├── Views/                       # Vistas de Razor (HTML y CSS Premium)
 ├── wwwroot/                     # Recursos estáticos (Imágenes, site.css, hierarchy.js)
 └── Program.cs                   # Punto de entrada de la aplicación y registro de servicios
 ```
+
+---
+
+## ⚡ Patrón CQRS & Principios SOLID (Refactorización Global)
+
+El sistema ha sido completamente rediseñado bajo un enfoque riguroso de **Clean Code** y **Principios SOLID**, implementando una arquitectura de **CQRS (Command Query Responsibility Segregation)** hecha a la medida, libre de dependencias infladas.
+
+### 📐 Principios SOLID Aplicados
+
+1. **Single Responsibility Principle (SRP - Principio de Responsabilidad Única)**:
+   * **Controladores Delgados**: Los controladores ya no gestionan lógica de negocio, validaciones pesadas, transacciones de base de datos ni auditorías. Ahora actúan únicamente como *despachadores minimalistas* que reciben peticiones HTTP y delegan la ejecución directamente a manejadores específicos de comandos (`ICommandHandler`) y consultas (`IQueryHandler`).
+   * **Separación de Escrituras y Lecturas**: Cada caso de uso (como registrar un agente o exportar un árbol EAD) está aislado en su propia clase dedicada (ej. `CreateAgentCommand` o `ExportEadQuery`), garantizando que cada clase tenga un único motivo de cambio.
+
+2. **Open/Closed Principle (OCP - Principio de Abierto/Cerrado)**:
+   * El sistema está abierto a la extensión pero cerrado a la modificación. Para implementar un nuevo caso de uso (por ejemplo, un nuevo tipo de reporte o importación), basta con crear un nuevo `Command` o `Query` y su respectivo `Handler`. No hay necesidad de alterar los controladores existentes ni otras capas operativas del sistema.
+
+3. **Liskov Substitution Principle (LSP - Principio de Sustitución de Liskov)**:
+   * Se garantiza una interoperabilidad perfecta y coherencia de tipos mediante abstracciones genéricas. Cualquier manejador que implemente `IQueryHandler<TQuery, TResult>` o `ICommandHandler<TCommand, TResult>` puede sustituir de manera segura y transparente su comportamiento sin romper la lógica del despachador en el controlador.
+
+4. **Interface Segregation Principle (ISP - Principio de Segregación de Interfaces)**:
+   * Los controladores ya no dependen de interfaces de repositorio gigantescas ni de servicios monolíticos con docenas de métodos. En su lugar, dependen de interfaces ultra-enfocadas e individuales (`IQueryHandler<TQuery, TResult>` e `ICommandHandler<TCommand, TResult>`), que exponen un único método público: `HandleAsync`. Esto elimina dependencias innecesarias y reduce el acoplamiento drásticamente.
+
+5. **Dependency Inversion Principle (DIP - Principio de Inversión de Dependencias)**:
+   * Tanto los controladores como los manejadores dependen exclusivamente de abstracciones e interfaces, no de implementaciones de infraestructura concretas. Los servicios de persistencia, exportación y auditoría se inyectan a través del contenedor nativo de dependencias en `Program.cs`.
+
+### 🛡️ Beneficios de la Arquitectura de CQRS Ligero (Custom-built)
+
+* **Sin Acoplamiento a Terceros (No MediatR)**: En lugar de introducir paquetes NuGet externos como MediatR que añaden sobrecarga y complejidad, se construyó una infraestructura CQRS genérica y tipada nativa dentro de [Shared/Interfaces/](file:///Users/jdnarvaezf/Documents/Projects/g23-archivesspace/Domains/Shared/Interfaces/). Esto resulta en:
+  * **Tipado Seguro en Tiempo de Compilación**: Errores en tipos de retorno o solicitudes se detectan inmediatamente al compilar, no en tiempo de ejecución.
+  * **Máximo Rendimiento**: Cero sobrecarga de reflexión o enrutamiento de mensajes dinámicos pesados.
+* **Control de Seguridad Nativo**: La lógica de autorización se extrajo de las acciones de los controladores y ahora se gestiona de forma elegante mediante atributos declarativos nativos de ASP.NET Core (`[Authorize(Roles = "...")]`), asegurando una capa de protección homogénea y legible.
+* **Auditoría Centralizada**: Se integró un `IAuditService` unificado en lugar de invocaciones directas y repetitivas a repositorios de logs de base de datos desde los controladores, permitiendo auditorías consistentes y estructuradas ante cualquier operación de escritura en el sistema.
 
 ---
 

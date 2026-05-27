@@ -3,8 +3,9 @@ using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Mvc;
 using ArchivesSpaceWeb.Domains.Identity.Entities;
 using ArchivesSpaceWeb.Domains.Identity.Interfaces;
+using ArchivesSpaceWeb.Domains.Identity.Commands;
 using ArchivesSpaceWeb.Domains.Shared.Interfaces;
-using ArchivesSpaceWeb.Domains.Admin.Entities;
+using ArchivesSpaceWeb.Domains.Admin.Interfaces;
 using System;
 using System.Collections.Generic;
 using System.Security.Claims;
@@ -14,13 +15,15 @@ namespace ArchivesSpaceWeb.Domains.Identity.Controllers
 {
     public class AccountController : Controller
     {
-        private readonly IAuthService _authService;
-        private readonly IRepository<Event> _eventRepository;
+        private readonly ICommandHandler<LoginCommand, User?> _loginCommandHandler;
+        private readonly ICommandHandler<LogoutCommand, bool> _logoutCommandHandler;
 
-        public AccountController(IAuthService authService, IRepository<Event> eventRepository)
+        public AccountController(
+            ICommandHandler<LoginCommand, User?> loginCommandHandler,
+            ICommandHandler<LogoutCommand, bool> logoutCommandHandler)
         {
-            _authService = authService;
-            _eventRepository = eventRepository;
+            _loginCommandHandler = loginCommandHandler;
+            _logoutCommandHandler = logoutCommandHandler;
         }
 
         [HttpGet]
@@ -42,7 +45,8 @@ namespace ArchivesSpaceWeb.Domains.Identity.Controllers
                 return View();
             }
 
-            var user = await _authService.ValidateUserAsync(username, password, authMode);
+            var command = new LoginCommand(username, password, authMode);
+            var user = await _loginCommandHandler.HandleAsync(command);
 
             if (user != null)
             {
@@ -64,16 +68,6 @@ namespace ArchivesSpaceWeb.Domains.Identity.Controllers
 
                 await HttpContext.SignInAsync(CookieAuthenticationDefaults.AuthenticationScheme, new ClaimsPrincipal(claimsIdentity), authProperties);
 
-                // US 37: Log login Event
-                var logEvent = new Event
-                {
-                    EventType = "Login",
-                    EventDate = DateTime.Now,
-                    Description = $"Usuario '{user.Username}' inició sesión usando método '{user.AuthMode}' con rol '{user.Role}'."
-                };
-                await _eventRepository.AddAsync(logEvent);
-                await _eventRepository.SaveChangesAsync();
-
                 if (!string.IsNullOrEmpty(returnUrl) && Url.IsLocalUrl(returnUrl))
                 {
                     return Redirect(returnUrl);
@@ -87,19 +81,8 @@ namespace ArchivesSpaceWeb.Domains.Identity.Controllers
 
         public async Task<IActionResult> Logout()
         {
-            var username = User.Identity?.Name;
-            if (!string.IsNullOrEmpty(username))
-            {
-                // Log logout Event
-                var logEvent = new Event
-                {
-                    EventType = "Logout",
-                    EventDate = DateTime.Now,
-                    Description = $"Usuario '{username}' cerró sesión."
-                };
-                await _eventRepository.AddAsync(logEvent);
-                await _eventRepository.SaveChangesAsync();
-            }
+            var command = new LogoutCommand(User.Identity?.Name);
+            await _logoutCommandHandler.HandleAsync(command);
 
             await HttpContext.SignOutAsync(CookieAuthenticationDefaults.AuthenticationScheme);
             return RedirectToAction("Login");

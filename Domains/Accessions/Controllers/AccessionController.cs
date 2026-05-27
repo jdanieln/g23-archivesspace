@@ -3,13 +3,12 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using ArchivesSpaceWeb.Domains.Accessions.Entities;
 using ArchivesSpaceWeb.Domains.Accessions.Interfaces;
+using ArchivesSpaceWeb.Domains.Accessions.Queries;
+using ArchivesSpaceWeb.Domains.Accessions.Commands;
 using ArchivesSpaceWeb.Domains.Shared.Interfaces;
-using ArchivesSpaceWeb.Domains.Admin.Entities;
-using ArchivesSpaceWeb.Domains.Admin.Interfaces;
 using System;
+using System.Collections.Generic;
 using System.IO;
-using System.Linq;
-using System.Text;
 using System.Threading.Tasks;
 
 namespace ArchivesSpaceWeb.Domains.Accessions.Controllers
@@ -17,79 +16,61 @@ namespace ArchivesSpaceWeb.Domains.Accessions.Controllers
     [Authorize]
     public class AccessionController : Controller
     {
+        private readonly IQueryHandler<GetAccessionsListQuery, List<Accession>> _listQueryHandler;
+        private readonly IQueryHandler<GetAccessionDetailsQuery, AccessionDetailsResult?> _detailsQueryHandler;
+        private readonly ICommandHandler<CreateAccessionCommand, Accession> _createCommandHandler;
+        private readonly ICommandHandler<ImportAccessionsCsvCommand, ImportAccessionsCsvResult> _importCommandHandler;
         private readonly IAccessionRepository _accessionRepository;
-        private readonly IImportService _importService;
-        private readonly IRepository<Event> _eventRepository;
 
         public AccessionController(
-            IAccessionRepository accessionRepository,
-            IImportService importService,
-            IRepository<Event> eventRepository)
+            IQueryHandler<GetAccessionsListQuery, List<Accession>> listQueryHandler,
+            IQueryHandler<GetAccessionDetailsQuery, AccessionDetailsResult?> detailsQueryHandler,
+            ICommandHandler<CreateAccessionCommand, Accession> createCommandHandler,
+            ICommandHandler<ImportAccessionsCsvCommand, ImportAccessionsCsvResult> importCommandHandler,
+            IAccessionRepository accessionRepository)
         {
+            _listQueryHandler = listQueryHandler;
+            _detailsQueryHandler = detailsQueryHandler;
+            _createCommandHandler = createCommandHandler;
+            _importCommandHandler = importCommandHandler;
             _accessionRepository = accessionRepository;
-            _importService = importService;
-            _eventRepository = eventRepository;
         }
 
         public async Task<IActionResult> Index()
         {
-            var repClaim = User.FindFirst("RepositoryId")?.Value;
-            var isSysAdmin = User.IsInRole("SystemAdmin");
-
-            System.Collections.Generic.List<Accession> accessions;
-
-            if (!isSysAdmin && int.TryParse(repClaim, out int repId) && repId > 0)
-            {
-                accessions = await _accessionRepository.GetByRepositoryAsync(repId);
-            }
-            else
-            {
-                accessions = await _accessionRepository.GetAllWithRepositoryAsync();
-            }
-
+            var query = new GetAccessionsListQuery(User);
+            var accessions = await _listQueryHandler.HandleAsync(query);
             return View(accessions);
         }
 
         public async Task<IActionResult> Details(int id)
         {
-            var accession = await _accessionRepository.GetAccessionWithDetailsAsync(id);
+            var query = new GetAccessionDetailsQuery(id);
+            var result = await _detailsQueryHandler.HandleAsync(query);
 
-            if (accession == null) return NotFound();
+            if (result == null) return NotFound();
 
-            ViewBag.Agents = await _accessionRepository.GetAccessionAgentsAsync(id);
-
-            return View(accession);
+            ViewBag.Agents = result.Agents;
+            return View(result.Accession);
         }
 
         [HttpGet]
+        [Authorize(Roles = "SystemAdmin,RepositoryManager,BasicDataEntry")]
         public async Task<IActionResult> Create()
         {
-            if (User.IsInRole("ReadOnly")) return RedirectToAction("AccessDenied", "Account");
             ViewBag.Repositories = await _accessionRepository.GetAllRepositoriesAsync();
             return View();
         }
 
         [HttpPost]
         [ValidateAntiForgeryToken]
+        [Authorize(Roles = "SystemAdmin,RepositoryManager,BasicDataEntry")]
         public async Task<IActionResult> Create(Accession accession)
         {
-            if (User.IsInRole("ReadOnly")) return RedirectToAction("AccessDenied", "Account");
-
             if (ModelState.IsValid)
             {
-                await _accessionRepository.AddAsync(accession);
-                await _accessionRepository.SaveChangesAsync();
-
-                // Event logging (US 37)
-                var creationEvent = new Event
-                {
-                    EventType = "Creation",
-                    EventDate = DateTime.Now,
-                    Description = $"Ingreso de Accession '{accession.Title}' ({accession.Identifier}) creado por {User.Identity?.Name}."
-                };
-                await _eventRepository.AddAsync(creationEvent);
-                await _eventRepository.SaveChangesAsync();
-
+                var command = new CreateAccessionCommand(accession, User.Identity?.Name);
+                await _createCommandHandler.HandleAsync(command);
                 return RedirectToAction(nameof(Index));
             }
 
@@ -99,11 +80,9 @@ namespace ArchivesSpaceWeb.Domains.Accessions.Controllers
 
         // US 11: Import Accessions in CSV
         [HttpPost]
+        [Authorize(Roles = "SystemAdmin,RepositoryManager")]
         public async Task<IActionResult> ImportCsv(IFormFile csvFile, int repositoryId)
         {
-            if (User.IsInRole("ReadOnly") || User.IsInRole("BasicDataEntry"))
-                return Json(new { success = false, message = "Acceso Denegado." });
-
             if (csvFile == null || csvFile.Length == 0)
             {
                 return Json(new { success = false, message = "Selecciona un archivo CSV válido." });
@@ -113,7 +92,8 @@ namespace ArchivesSpaceWeb.Domains.Accessions.Controllers
             {
                 using (var stream = csvFile.OpenReadStream())
                 {
-                    var result = await _importService.ImportAccessionsCsvAsync(stream, repositoryId);
+                    var command = new ImportAccessionsCsvCommand(stream, repositoryId);
+                    var result = await _importCommandHandler.HandleAsync(command);
                     if (result.Success)
                     {
                         return Json(new { success = true, successCount = result.SuccessCount, errorCount = result.ErrorCount, errorLog = result.LogDetails });

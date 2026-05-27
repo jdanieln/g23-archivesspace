@@ -1,8 +1,9 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using ArchivesSpaceWeb.Domains.Resources.Entities;
-using ArchivesSpaceWeb.Domains.Resources.Interfaces;
-using System.Linq;
+using ArchivesSpaceWeb.Domains.Resources.Queries;
+using ArchivesSpaceWeb.Domains.Shared.Interfaces;
+using System.Collections.Generic;
 using System.Threading.Tasks;
 
 namespace ArchivesSpaceWeb.Domains.Resources.Controllers
@@ -10,49 +11,49 @@ namespace ArchivesSpaceWeb.Domains.Resources.Controllers
     [AllowAnonymous] // Finding Aid is public for researchers (US 1)
     public class FindingAidController : Controller
     {
-        private readonly IResourceRepository _resourceRepository;
-
-        public FindingAidController(IResourceRepository resourceRepository)
+        private readonly IQueryHandler<SearchFindingAidsQuery, List<Resource>> _searchQueryHandler;
+        private readonly IQueryHandler<GetResourceDetailsQuery, ResourceDetailsResult?> _detailsQueryHandler;
+ 
+        public FindingAidController(
+            IQueryHandler<SearchFindingAidsQuery, List<Resource>> searchQueryHandler,
+            IQueryHandler<GetResourceDetailsQuery, ResourceDetailsResult?> detailsQueryHandler)
         {
-            _resourceRepository = resourceRepository;
+            _searchQueryHandler = searchQueryHandler;
+            _detailsQueryHandler = detailsQueryHandler;
         }
 
         public async Task<IActionResult> Index(string search)
         {
-            var resources = await _resourceRepository.GetAllWithRepositoryAsync();
-            
-            if (!string.IsNullOrEmpty(search))
-            {
-                search = search.ToLower();
-                resources = resources.Where(r => r.Title.ToLower().Contains(search) || r.Identifier.ToLower().Contains(search)).ToList();
-            }
-
+            var query = new SearchFindingAidsQuery(search);
+            var resources = await _searchQueryHandler.HandleAsync(query);
+ 
             ViewBag.Search = search;
             return View(resources);
         }
 
         public async Task<IActionResult> View(int id)
         {
-            var resource = await _resourceRepository.GetResourceWithDetailsAsync(id);
-
-            if (resource == null) return NotFound();
-
+            var query = new GetResourceDetailsQuery(id);
+            var result = await _detailsQueryHandler.HandleAsync(query);
+ 
+            if (result == null) return NotFound();
+ 
             // Load components hierarchy recursively in order
-            ViewBag.Components = await _resourceRepository.GetComponentsTreeAsync(id);
-
+            ViewBag.Components = result.Components;
+ 
             // Load related subjects
-            ViewBag.Subjects = await _resourceRepository.GetResourceSubjectsAsync(id);
-
+            ViewBag.Subjects = result.Subjects;
+ 
             // Load related agents
-            ViewBag.Agents = await _resourceRepository.GetResourceAgentsAsync(id);
-
+            ViewBag.Agents = result.Agents;
+ 
             // Load collection management subrecord details
-            ViewBag.CollectionManagement = await _resourceRepository.GetCollectionManagementAsync(id);
-
+            ViewBag.CollectionManagement = result.CollectionManagement;
+ 
             // Load linked rights statements
-            ViewBag.RightsStatements = await _resourceRepository.GetRightsStatementsAsync(id);
-
-            return View(resource);
+            ViewBag.RightsStatements = result.RightsStatements;
+ 
+            return View(result.Resource);
         }
     }
 }

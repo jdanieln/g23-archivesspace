@@ -2,9 +2,12 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using ArchivesSpaceWeb.Domains.Agents.Entities;
 using ArchivesSpaceWeb.Domains.Agents.Interfaces;
+using ArchivesSpaceWeb.Domains.Agents.Queries;
+using ArchivesSpaceWeb.Domains.Agents.Commands;
 using ArchivesSpaceWeb.Domains.Shared.Interfaces;
-using ArchivesSpaceWeb.Domains.Admin.Entities;
+using ArchivesSpaceWeb.Domains.Admin.Interfaces;
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Text;
 using System.Threading.Tasks;
@@ -15,60 +18,62 @@ namespace ArchivesSpaceWeb.Domains.Agents.Controllers
     [Authorize]
     public class AgentController : Controller
     {
-        private readonly IAgentRepository _agentRepository;
-        private readonly IRepository<Event> _eventRepository;
+        private readonly IQueryHandler<GetAgentsListQuery, List<Agent>> _listQueryHandler;
+        private readonly IQueryHandler<GetAgentDetailsQuery, AgentDetailsResult?> _detailsQueryHandler;
+        private readonly IQueryHandler<ExportEacCpfQuery, XDocument?> _exportQueryHandler;
+        private readonly ICommandHandler<CreateAgentCommand, Agent> _createCommandHandler;
+        private readonly ICommandHandler<EditAgentCommand, Agent> _editCommandHandler;
 
-        public AgentController(IAgentRepository agentRepository, IRepository<Event> eventRepository)
+        public AgentController(
+            IQueryHandler<GetAgentsListQuery, List<Agent>> listQueryHandler,
+            IQueryHandler<GetAgentDetailsQuery, AgentDetailsResult?> detailsQueryHandler,
+            IQueryHandler<ExportEacCpfQuery, XDocument?> exportQueryHandler,
+            ICommandHandler<CreateAgentCommand, Agent> createCommandHandler,
+            ICommandHandler<EditAgentCommand, Agent> editCommandHandler)
         {
-            _agentRepository = agentRepository;
-            _eventRepository = eventRepository;
+            _listQueryHandler = listQueryHandler;
+            _detailsQueryHandler = detailsQueryHandler;
+            _exportQueryHandler = exportQueryHandler;
+            _createCommandHandler = createCommandHandler;
+            _editCommandHandler = editCommandHandler;
         }
 
         public async Task<IActionResult> Index()
         {
-            return View(await _agentRepository.GetAllAsync());
+            var query = new GetAgentsListQuery();
+            var agents = await _listQueryHandler.HandleAsync(query);
+            return View(agents);
         }
 
         public async Task<IActionResult> Details(int id)
         {
-            var agent = await _agentRepository.GetByIdAsync(id);
-            if (agent == null) return NotFound();
+            var query = new GetAgentDetailsQuery(id);
+            var result = await _detailsQueryHandler.HandleAsync(query);
 
-            // Fetch related resources (US 35)
-            ViewBag.Resources = await _agentRepository.GetLinkedResourcesAsync(id);
-            ViewBag.Accessions = await _agentRepository.GetLinkedAccessionsAsync(id);
+            if (result == null) return NotFound();
 
-            return View(agent);
+            ViewBag.Resources = result.Resources;
+            ViewBag.Accessions = result.Accessions;
+
+            return View(result.Agent);
         }
 
         [HttpGet]
+        [Authorize(Roles = "SystemAdmin,RepositoryManager,BasicDataEntry")]
         public IActionResult Create()
         {
-            if (User.IsInRole("ReadOnly")) return RedirectToAction("AccessDenied", "Account");
             return View();
         }
 
         [HttpPost]
         [ValidateAntiForgeryToken]
+        [Authorize(Roles = "SystemAdmin,RepositoryManager,BasicDataEntry")]
         public async Task<IActionResult> Create(Agent agent)
         {
-            if (User.IsInRole("ReadOnly")) return RedirectToAction("AccessDenied", "Account");
-
             if (ModelState.IsValid)
             {
-                await _agentRepository.AddAsync(agent);
-                await _agentRepository.SaveChangesAsync();
-
-                // Log creation event (US 37)
-                var creationEvent = new Event
-                {
-                    EventType = "Creation",
-                    EventDate = DateTime.Now,
-                    Description = $"Agente '{agent.Name}' ({agent.Type}) registrado por {User.Identity?.Name}."
-                };
-                await _eventRepository.AddAsync(creationEvent);
-                await _eventRepository.SaveChangesAsync();
-
+                var command = new CreateAgentCommand(agent, User.Identity?.Name);
+                await _createCommandHandler.HandleAsync(command);
                 return RedirectToAction(nameof(Index));
             }
 
@@ -76,38 +81,27 @@ namespace ArchivesSpaceWeb.Domains.Agents.Controllers
         }
 
         [HttpGet]
+        [Authorize(Roles = "SystemAdmin,RepositoryManager")]
         public async Task<IActionResult> Edit(int id)
         {
-            if (User.IsInRole("ReadOnly") || User.IsInRole("BasicDataEntry"))
-                return RedirectToAction("AccessDenied", "Account");
+            var query = new GetAgentDetailsQuery(id);
+            var result = await _detailsQueryHandler.HandleAsync(query);
+            if (result == null) return NotFound();
 
-            var agent = await _agentRepository.GetByIdAsync(id);
-            if (agent == null) return NotFound();
-
-            return View(agent);
+            return View(result.Agent);
         }
 
         [HttpPost]
         [ValidateAntiForgeryToken]
+        [Authorize(Roles = "SystemAdmin,RepositoryManager")]
         public async Task<IActionResult> Edit(int id, Agent agent)
         {
-            if (User.IsInRole("ReadOnly") || User.IsInRole("BasicDataEntry"))
-                return RedirectToAction("AccessDenied", "Account");
-
             if (id != agent.Id) return NotFound();
 
             if (ModelState.IsValid)
             {
-                await _agentRepository.UpdateAsync(agent);
-
-                var modEvent = new Event
-                {
-                    EventType = "Modification",
-                    EventDate = DateTime.Now,
-                    Description = $"Agente '{agent.Name}' modificado por {User.Identity?.Name}."
-                };
-                await _eventRepository.AddAsync(modEvent);
-                await _agentRepository.SaveChangesAsync();
+                var command = new EditAgentCommand(agent, User.Identity?.Name);
+                await _editCommandHandler.HandleAsync(command);
                 
                 return RedirectToAction(nameof(Details), new { id = agent.Id });
             }
@@ -119,43 +113,10 @@ namespace ArchivesSpaceWeb.Domains.Agents.Controllers
         [HttpGet]
         public async Task<IActionResult> ExportEacCpf(int id)
         {
-            var agent = await _agentRepository.GetByIdAsync(id);
-            if (agent == null) return NotFound();
+            var query = new ExportEacCpfQuery(id);
+            var doc = await _exportQueryHandler.HandleAsync(query);
 
-            // Build compliant EAC-CPF XML
-            var doc = new XDocument(
-                new XElement("eac-cpf",
-                    new XAttribute("xmlns", "urn:isbn:1-931666-33-4"),
-                    new XElement("control",
-                        new XElement("recordId", $"agent-{agent.Id}"),
-                        new XElement("maintenanceStatus", "derived"),
-                        new XElement("maintenanceAgency",
-                            new XElement("agencyName", "ArchivesSpaceWeb G23 System")
-                        ),
-                        new XElement("languageDeclaration",
-                            new XElement("language", new XAttribute("languageCode", "spa"), "Español")
-                        )
-                    ),
-                    new XElement("identity",
-                        new XElement("entityType", agent.Type.ToLower() == "corporate" ? "corporateBody" : agent.Type.ToLower()),
-                        new XElement("nameEntry",
-                            new XElement("part", agent.Name),
-                            new XElement("authorizedForm", "local")
-                        )
-                    ),
-                    new XElement("description",
-                        new XElement("existDates",
-                            new XElement("dateRange",
-                                new XElement("fromDate", "N/D"),
-                                new XElement("toDate", "N/D")
-                            )
-                        ),
-                        new XElement("biogHist",
-                            new XElement("p", $"Registro de agente importado/administrado como {agent.Type}. Autoridad origen: {agent.Source ?? "Local"}.")
-                        )
-                    )
-                )
-            );
+            if (doc == null) return NotFound();
 
             var stream = new MemoryStream();
             using (var writer = new StreamWriter(stream, Encoding.UTF8))
@@ -164,7 +125,12 @@ namespace ArchivesSpaceWeb.Domains.Agents.Controllers
             }
             stream.Position = 0;
 
-            string fileName = $"EAC-CPF-{agent.Name.Replace(" ", "-")}.xml";
+            // Retrieve agent details for filename
+            var detailsQuery = new GetAgentDetailsQuery(id);
+            var details = await _detailsQueryHandler.HandleAsync(detailsQuery);
+            string agentName = details?.Agent.Name ?? "agent";
+
+            string fileName = $"EAC-CPF-{agentName.Replace(" ", "-")}.xml";
             return File(stream, "application/xml", fileName);
         }
     }

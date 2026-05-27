@@ -1,37 +1,47 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using ArchivesSpaceWeb.Domains.Admin.Entities;
-using ArchivesSpaceWeb.Domains.Admin.Interfaces;
-using ArchivesSpaceWeb.Domains.Identity.Entities;
-using ArchivesSpaceWeb.Domains.Identity.Interfaces;
+using ArchivesSpaceWeb.Domains.Admin.Queries;
+using ArchivesSpaceWeb.Domains.Admin.Commands;
 using ArchivesSpaceWeb.Domains.Shared.Interfaces;
-using ArchivesSpaceWeb.Domains.Shared.Infrastructure;
 using System;
-using System.IO;
-using System.Linq;
 using System.Threading.Tasks;
-using System.Collections.Generic;
 
 namespace ArchivesSpaceWeb.Domains.Admin.Controllers
 {
     [Authorize(Roles = "SystemAdmin")]
     public class AdminController : Controller
     {
-        private readonly IUserRepository _userRepository;
-        private readonly IRepository<Repository> _repositoryRepo;
-        private readonly IEnumService _enumService;
-        private readonly IBackupService _backupService;
+        private readonly IQueryHandler<GetUsersListQuery, UsersListResult> _usersListQueryHandler;
+        private readonly IQueryHandler<GetEnumsListQuery, System.Collections.Generic.List<EnumList>> _enumsQueryHandler;
+        private readonly IQueryHandler<GetDatabaseStatsQuery, DatabaseStatsResult> _dbStatsQueryHandler;
+        private readonly ICommandHandler<CreateUserCommand, bool> _createUserCommandHandler;
+        private readonly ICommandHandler<ResetPasswordCommand, bool> _resetPasswordCommandHandler;
+        private readonly ICommandHandler<AssignRepoManagerCommand, bool> _assignRepoManagerCommandHandler;
+        private readonly ICommandHandler<CreateEnumValueCommand, bool> _createEnumValueCommandHandler;
+        private readonly ICommandHandler<BulkUpdateEnumCommand, int> _bulkUpdateEnumCommandHandler;
+        private readonly ICommandHandler<BackupDatabaseCommand, string> _backupDatabaseCommandHandler;
 
         public AdminController(
-            IUserRepository userRepository,
-            IRepository<Repository> repositoryRepo,
-            IEnumService enumService,
-            IBackupService backupService)
+            IQueryHandler<GetUsersListQuery, UsersListResult> usersListQueryHandler,
+            IQueryHandler<GetEnumsListQuery, System.Collections.Generic.List<EnumList>> enumsQueryHandler,
+            IQueryHandler<GetDatabaseStatsQuery, DatabaseStatsResult> dbStatsQueryHandler,
+            ICommandHandler<CreateUserCommand, bool> createUserCommandHandler,
+            ICommandHandler<ResetPasswordCommand, bool> resetPasswordCommandHandler,
+            ICommandHandler<AssignRepoManagerCommand, bool> assignRepoManagerCommandHandler,
+            ICommandHandler<CreateEnumValueCommand, bool> createEnumValueCommandHandler,
+            ICommandHandler<BulkUpdateEnumCommand, int> bulkUpdateEnumCommandHandler,
+            ICommandHandler<BackupDatabaseCommand, string> backupDatabaseCommandHandler)
         {
-            _userRepository = userRepository;
-            _repositoryRepo = repositoryRepo;
-            _enumService = enumService;
-            _backupService = backupService;
+            _usersListQueryHandler = usersListQueryHandler;
+            _enumsQueryHandler = enumsQueryHandler;
+            _dbStatsQueryHandler = dbStatsQueryHandler;
+            _createUserCommandHandler = createUserCommandHandler;
+            _resetPasswordCommandHandler = resetPasswordCommandHandler;
+            _assignRepoManagerCommandHandler = assignRepoManagerCommandHandler;
+            _createEnumValueCommandHandler = createEnumValueCommandHandler;
+            _bulkUpdateEnumCommandHandler = bulkUpdateEnumCommandHandler;
+            _backupDatabaseCommandHandler = backupDatabaseCommandHandler;
         }
 
         // --- USER ACCOUNT MANAGEMENT --- (US 2, 25, 49)
@@ -39,9 +49,9 @@ namespace ArchivesSpaceWeb.Domains.Admin.Controllers
         [HttpGet]
         public async Task<IActionResult> Users()
         {
-            var users = await _userRepository.GetUsersWithRepositoryAsync();
-            ViewBag.Repositories = await _repositoryRepo.GetAllAsync();
-            return View(users);
+            var result = await _usersListQueryHandler.HandleAsync(new GetUsersListQuery());
+            ViewBag.Repositories = result.Repositories;
+            return View(result.Users);
         }
 
         [HttpPost]
@@ -55,25 +65,16 @@ namespace ArchivesSpaceWeb.Domains.Admin.Controllers
                 return RedirectToAction(nameof(Users));
             }
 
-            var allUsers = await _userRepository.GetAllAsync();
-            var existing = allUsers.Any(u => u.Username.Equals(username, StringComparison.OrdinalIgnoreCase));
+            var result = await _usersListQueryHandler.HandleAsync(new GetUsersListQuery());
+            var existing = System.Linq.Enumerable.Any(result.Users, u => u.Username.Equals(username, StringComparison.OrdinalIgnoreCase));
             if (existing)
             {
                 TempData["ErrorMessage"] = "El nombre de usuario ya existe.";
                 return RedirectToAction(nameof(Users));
             }
 
-            var newUser = new User
-            {
-                Username = username,
-                PasswordHash = ApplicationDbContext.HashPassword(password),
-                Role = role,
-                RepositoryId = repositoryId == 0 ? null : repositoryId,
-                AuthMode = authMode
-            };
-
-            await _userRepository.AddAsync(newUser);
-            await _userRepository.SaveChangesAsync();
+            var command = new CreateUserCommand(username, password, role, repositoryId, authMode);
+            await _createUserCommandHandler.HandleAsync(command);
 
             TempData["SuccessMessage"] = $"Usuario '{username}' creado exitosamente.";
             return RedirectToAction(nameof(Users));
@@ -84,20 +85,18 @@ namespace ArchivesSpaceWeb.Domains.Admin.Controllers
         // US 2: Reset User Password
         public async Task<IActionResult> ResetPassword(int id, string newPassword)
         {
-            var user = await _userRepository.GetByIdAsync(id);
-            if (user == null) return NotFound();
-
             if (string.IsNullOrEmpty(newPassword))
             {
                 TempData["ErrorMessage"] = "La contraseña nueva no puede estar vacía.";
                 return RedirectToAction(nameof(Users));
             }
 
-            user.PasswordHash = ApplicationDbContext.HashPassword(newPassword);
-            await _userRepository.UpdateAsync(user);
-            await _userRepository.SaveChangesAsync();
+            var command = new ResetPasswordCommand(id, newPassword);
+            var success = await _resetPasswordCommandHandler.HandleAsync(command);
 
-            TempData["SuccessMessage"] = $"Contraseña del usuario '{user.Username}' restablecida.";
+            if (!success) return NotFound();
+
+            TempData["SuccessMessage"] = $"Contraseña restablecida.";
             return RedirectToAction(nameof(Users));
         }
 
@@ -106,21 +105,18 @@ namespace ArchivesSpaceWeb.Domains.Admin.Controllers
         // US 49: Declare that a user has the Repository Manager role for a given Repository
         public async Task<IActionResult> AssignRepoManager(int id, int repositoryId)
         {
-            var user = await _userRepository.GetByIdAsync(id);
-            if (user == null) return NotFound();
-
             if (repositoryId <= 0)
             {
                 TempData["ErrorMessage"] = "Debes seleccionar un Repositorio válido.";
                 return RedirectToAction(nameof(Users));
             }
 
-            user.Role = "RepositoryManager";
-            user.RepositoryId = repositoryId;
-            await _userRepository.UpdateAsync(user);
-            await _userRepository.SaveChangesAsync();
+            var command = new AssignRepoManagerCommand(id, repositoryId);
+            var success = await _assignRepoManagerCommandHandler.HandleAsync(command);
 
-            TempData["SuccessMessage"] = $"El usuario '{user.Username}' ahora es Repository Manager del Repositorio seleccionado.";
+            if (!success) return NotFound();
+
+            TempData["SuccessMessage"] = $"El usuario ahora es Repository Manager del Repositorio seleccionado.";
             return RedirectToAction(nameof(Users));
         }
 
@@ -129,7 +125,7 @@ namespace ArchivesSpaceWeb.Domains.Admin.Controllers
         [HttpGet]
         public async Task<IActionResult> Enums()
         {
-            var enums = await _enumService.GetEnumListsAsync();
+            var enums = await _enumsQueryHandler.HandleAsync(new GetEnumsListQuery());
             return View(enums);
         }
 
@@ -145,7 +141,8 @@ namespace ArchivesSpaceWeb.Domains.Admin.Controllers
 
             try
             {
-                await _enumService.AddEnumValueAsync(enumListId, value, label);
+                var command = new CreateEnumValueCommand(enumListId, value, label);
+                await _createEnumValueCommandHandler.HandleAsync(command);
                 TempData["SuccessMessage"] = $"Valor '{label}' agregado con éxito.";
             }
             catch (Exception ex)
@@ -169,7 +166,8 @@ namespace ArchivesSpaceWeb.Domains.Admin.Controllers
 
             try
             {
-                int affectedRows = await _enumService.BulkUpdateEnumValuesAsync(enumListId, oldValue, newValue);
+                var command = new BulkUpdateEnumCommand(enumListId, oldValue, newValue);
+                int affectedRows = await _bulkUpdateEnumCommandHandler.HandleAsync(command);
                 TempData["SuccessMessage"] = $"Actualización masiva completada. Se modificaron {affectedRows} registros de '{oldValue}' a '{newValue}'.";
             }
             catch (Exception ex)
@@ -183,14 +181,15 @@ namespace ArchivesSpaceWeb.Domains.Admin.Controllers
         // --- DATABASE LOCATION & BACKUPS --- (US 30)
 
         [HttpGet]
-        public IActionResult Database()
+        public async Task<IActionResult> Database()
         {
-            ViewBag.ConnectionString = _backupService.GetConnectionString();
-            ViewBag.DatabasePath = _backupService.GetDatabasePath();
-            ViewBag.DatabaseExists = _backupService.DatabaseExists();
-            ViewBag.DatabaseSize = _backupService.GetDatabaseSize();
-            ViewBag.LastModified = _backupService.GetLastModified();
-            ViewBag.BackupFiles = _backupService.GetBackupFiles();
+            var result = await _dbStatsQueryHandler.HandleAsync(new GetDatabaseStatsQuery());
+            ViewBag.ConnectionString = result.ConnectionString;
+            ViewBag.DatabasePath = result.DatabasePath;
+            ViewBag.DatabaseExists = result.DatabaseExists;
+            ViewBag.DatabaseSize = result.DatabaseSize;
+            ViewBag.LastModified = result.LastModified;
+            ViewBag.BackupFiles = result.BackupFiles;
 
             return View();
         }
@@ -202,7 +201,8 @@ namespace ArchivesSpaceWeb.Domains.Admin.Controllers
         {
             try
             {
-                var destFileName = await _backupService.BackupDatabaseAsync();
+                var command = new BackupDatabaseCommand();
+                var destFileName = await _backupDatabaseCommandHandler.HandleAsync(command);
                 TempData["SuccessMessage"] = $"Copia de seguridad creada con éxito: '{destFileName}'";
             }
             catch (Exception ex)
