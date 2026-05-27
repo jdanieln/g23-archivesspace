@@ -70,7 +70,7 @@ g23-archivesspace/
 
 ---
 
-## ⚡ Patrón CQRS & Principios SOLID (Refactorización Global)
+## ⚡ Patrón CQRS & Principios SOLID
 
 El sistema ha sido completamente rediseñado bajo un enfoque riguroso de **Clean Code** y **Principios SOLID**, implementando una arquitectura de **CQRS (Command Query Responsibility Segregation)** hecha a la medida, libre de dependencias infladas.
 
